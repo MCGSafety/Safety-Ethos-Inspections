@@ -433,7 +433,7 @@
       <div class="info-row">
         <div class="field">
           <label for="f-site">Site location</label>
-          <input type="text" id="f-site" placeholder="e.g. Plant 4 — North Bay" />
+          <select id="f-site"><option value="">Loading…</option></select>
         </div>
         <div class="field">
           <label for="f-date">Date</label>
@@ -443,24 +443,16 @@
       <div class="info-row">
         <div class="field">
           <label for="f-area">Area inspected</label>
-          <input type="text" id="f-area" list="area-suggestions" placeholder="e.g. Welding, Assembly, Office" />
-          <datalist id="area-suggestions">
-            <option value="Welding"></option>
-            <option value="Assembly"></option>
-            <option value="Office"></option>
-            <option value="Warehouse"></option>
-            <option value="Maintenance"></option>
-            <option value="Shipping / Receiving"></option>
-          </datalist>
+          <select id="f-area"><option value="">Loading…</option></select>
         </div>
         <div class="field">
           <label for="f-inspector">Your name</label>
-          <input type="text" id="f-inspector" placeholder="Inspector name" />
+          <select id="f-inspector"><option value="">Loading…</option></select>
         </div>
       </div>
       <div class="field">
         <label for="f-accompanied">Accompanied by (site representative)</label>
-        <input type="text" id="f-accompanied" placeholder="Optional" />
+        <select id="f-accompanied"><option value="">Loading…</option></select>
       </div>
       <div class="banner">Step 1 next: walk the area and check each category for at-risk behavior.</div>
     </section>
@@ -1184,21 +1176,80 @@
 
   /* ---------------- INFO FIELD BINDINGS ---------------- */
   function hydrateFields() {
-    document.getElementById("f-site").value = state.site;
     document.getElementById("f-date").value = state.date;
-    document.getElementById("f-area").value = state.area;
-    document.getElementById("f-inspector").value = state.inspector;
-    document.getElementById("f-accompanied").value = state.accompanied;
     document.getElementById("f-notes").value = state.notes;
   }
-  ["f-site","f-date","f-area","f-inspector","f-accompanied"].forEach(function (id) {
-    document.getElementById(id).addEventListener("input", function (e) {
-      var key = { "f-site":"site","f-date":"date","f-area":"area","f-inspector":"inspector","f-accompanied":"accompanied" }[id];
-      state[key] = e.target.value;
-      scheduleSave();
-    });
-  });
+  document.getElementById("f-date").addEventListener("input", function (e) { state.date = e.target.value; scheduleSave(); });
   document.getElementById("f-notes").addEventListener("input", function (e) { state.notes = e.target.value; scheduleSave(); });
+
+  /* ---------------- PICK-OR-ADD DROPDOWNS ---------------- */
+  function selectOptionsHtml(items, currentValue) {
+    var names = items.map(function (i) { return i.name; });
+    var html = '<option value="">— Select —</option>';
+    if (currentValue && names.indexOf(currentValue) === -1) {
+      html += '<option value="' + escapeHtml(currentValue) + '" selected>' + escapeHtml(currentValue) + "</option>";
+    }
+    html += items.map(function (i) {
+      return '<option value="' + escapeHtml(i.name) + '"' + (i.name === currentValue ? " selected" : "") + ">" + escapeHtml(i.name) + "</option>";
+    }).join("");
+    html += '<option value="__new__">+ Add new…</option>';
+    return html;
+  }
+
+  function wirePickOrAddSelect(selectEl, tableName, promptLabel, onValue) {
+    var lastValue = selectEl.value;
+    selectEl.addEventListener("change", function () {
+      if (selectEl.value === "__new__") {
+        var name = (window.prompt(promptLabel) || "").trim();
+        if (!name) { selectEl.value = lastValue; return; }
+        var existingOpt = Array.prototype.find.call(selectEl.options, function (o) {
+          return o.value !== "__new__" && o.value.toLowerCase() === name.toLowerCase();
+        });
+        if (existingOpt) {
+          selectEl.value = existingOpt.value;
+        } else {
+          addLookupItem(tableName, name).catch(function (e) {
+            console.warn("Could not save new " + tableName + " entry:", e.message);
+          });
+          var opt = document.createElement("option");
+          opt.value = name; opt.textContent = name;
+          selectEl.insertBefore(opt, selectEl.querySelector('option[value="__new__"]'));
+          selectEl.value = name;
+        }
+      }
+      lastValue = selectEl.value;
+      onValue(selectEl.value);
+    });
+  }
+
+  var LOOKUP_FIELDS = [
+    { fieldId: "f-site", table: "Sites", stateKey: "site", prompt: "New site name" },
+    { fieldId: "f-area", table: "Areas", stateKey: "area", prompt: "New area name" },
+    { fieldId: "f-inspector", table: "Inspectors", stateKey: "inspector", prompt: "New inspector name" },
+    { fieldId: "f-accompanied", table: "Inspectors", stateKey: "accompanied", prompt: "New name" }
+  ];
+
+  function loadLookupLists() {
+    var tableFetches = {};
+    function getList(table) {
+      if (!tableFetches[table]) tableFetches[table] = fetchLookupList(table);
+      return tableFetches[table];
+    }
+    LOOKUP_FIELDS.forEach(function (cfg) {
+      var el = document.getElementById(cfg.fieldId);
+      getList(cfg.table).then(function (items) {
+        el.innerHTML = selectOptionsHtml(items, state[cfg.stateKey]);
+      }).catch(function (e) {
+        el.innerHTML = selectOptionsHtml([], state[cfg.stateKey]);
+        console.warn("Could not load " + cfg.table + " list:", e.message);
+      }).then(function () {
+        wirePickOrAddSelect(el, cfg.table, cfg.prompt, function (val) {
+          state[cfg.stateKey] = val;
+          scheduleSave();
+        });
+      });
+    });
+  }
 
   /* ---------------- TABS ---------------- */
   var TAB_TITLES = { info: "Safety Ethos in Action", awareness: "Step 1 · Awareness", action: "Step 2 · Action", accountability: "Step 3 · Accountability", dashboard: "Dashboard", summary: "Walk Summary" };
@@ -1283,6 +1334,7 @@
     document.getElementById("setup-overlay").classList.remove("show");
     hydrateFields();
     renderAll();
+    loadLookupLists();
     flushPendingSyncs();
   }
 

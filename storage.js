@@ -49,6 +49,23 @@ function atCreate(tableName, fields) {
   return atRequest(`/${encodeURIComponent(tableName)}`, { method: "POST", body: JSON.stringify({ fields, typecast: true }) });
 }
 
+/* ---------------- lookup lists (Sites / Areas / Inspectors) ---------------- */
+
+function fetchLookupList(tableName) {
+  return atListAll(tableName).then(function (records) {
+    return records
+      .map(function (r) { return { id: r.id, name: r.fields.Name || "" }; })
+      .filter(function (i) { return i.name; })
+      .sort(function (a, b) { return a.name.localeCompare(b.name); });
+  });
+}
+
+function addLookupItem(tableName, name) {
+  return atCreate(tableName, { Name: name }).then(function (rec) {
+    return { id: rec.id, name: name };
+  });
+}
+
 /* ---------------- app record <-> Airtable field mapping ---------------- */
 
 var SYNC_CATEGORY_LABELS = {
