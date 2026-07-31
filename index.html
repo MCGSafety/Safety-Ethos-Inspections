@@ -84,6 +84,17 @@
     position: relative;
   }
 
+  /* ---- Splash screen ---- */
+  .splash-screen {
+    position: fixed; inset: 0; z-index: 50; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    transition: opacity 0.4s ease, visibility 0.4s ease; cursor: pointer;
+  }
+  .splash-screen.hide { opacity: 0; visibility: hidden; pointer-events: none; }
+  @media (prefers-reduced-motion: reduce) { .splash-screen { transition: none; } }
+  .splash-screen img { width: 120px; height: 120px; border-radius: 26px; object-fit: contain; background: #fff; padding: 10px; box-shadow: var(--shadow); }
+  .splash-title { font-family: "Bahnschrift SemiBold", "Bahnschrift", "Roboto Condensed", "Arial Narrow", sans-serif; font-size: 22px; font-weight: 700; color: var(--ink); text-align: center; }
+
   /* ---- Brand bar ---- */
   .brand-bar {
     flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
@@ -402,7 +413,7 @@
 
   @media print {
     body { padding: 0; background: #fff; }
-    .brand-bar, .app-bar, .tab-bar, .action-row, .sheet-backdrop, .sheet { display: none !important; }
+    .splash-screen, .brand-bar, .app-bar, .tab-bar, .action-row, .sheet-backdrop, .sheet { display: none !important; }
     .app-frame { max-width: 100%; box-shadow: none; border: none; }
     .content { overflow: visible; padding: 0; }
     .tab-panel { display: block !important; }
@@ -410,13 +421,16 @@
   }
 </style>
 
+<div class="splash-screen" id="splash-screen">
+  <img id="splash-logo" alt="" />
+  <div class="splash-title">Safety Ethos in Action</div>
+</div>
 <div class="app-frame">
   <div class="brand-bar"><img id="brand-logo" alt="Mission Critical Group" /></div>
   <header class="app-bar">
     <div style="display:flex; align-items:center; gap:10px; min-width:0;">
       <img src="data:image/png;base64,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" alt="" width="36" height="36" style="border-radius:9px; flex:0 0 auto; box-shadow:var(--shadow); object-fit:contain; background:#fff; padding:3px;" />
       <div class="titles">
-        <div class="eyebrow">MCG Executive A3</div>
         <h1 id="app-bar-title">Safety Ethos in Action</h1>
       </div>
     </div>
@@ -1355,6 +1369,15 @@
 
   document.getElementById("setup-logo").src = document.querySelector(".app-bar img").src;
   document.getElementById("brand-logo").src = document.querySelector('#panel-summary img[alt="Mission Critical Group"]').src;
+
+  (function () {
+    var splash = document.getElementById("splash-screen");
+    splash.querySelector("#splash-logo").src = document.querySelector(".app-bar img").src;
+    var dismissed = false;
+    function dismiss() { if (dismissed) return; dismissed = true; splash.classList.add("hide"); }
+    splash.addEventListener("click", dismiss);
+    setTimeout(dismiss, 1400);
+  })();
   document.getElementById("setup-connect-btn").addEventListener("click", function () {
     var input = document.getElementById("setup-token");
     var token = input.value.trim();
