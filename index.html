@@ -386,10 +386,11 @@
     .sheet-backdrop { position: fixed; }
     .sheet {
       position: fixed; left: 50%; top: 50%; bottom: auto; right: auto;
-      transform: translate(-50%, -46%); width: 620px; max-width: 88vw; max-height: 78vh;
+      transform: translate(-50%, -46%) scale(0.98); opacity: 0; pointer-events: none;
+      width: 620px; max-width: 88vw; max-height: 78vh;
       border-radius: 18px;
     }
-    .sheet.open { transform: translate(-50%, -50%); }
+    .sheet.open { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: auto; }
   }
 
   @media print {
