@@ -459,7 +459,7 @@
   <main class="content">
 
     <!-- INFO -->
-    <section class="tab-panel active" id="panel-info">
+    <section class="tab-panel" id="panel-info">
       <div class="step-head">
         <div class="kicker">Field Walk</div>
         <h2>Site details</h2>
@@ -524,7 +524,7 @@
     </section>
 
     <!-- DASHBOARD -->
-    <section class="tab-panel" id="panel-dashboard">
+    <section class="tab-panel active" id="panel-dashboard">
       <div class="step-head">
         <div class="kicker">Across all walks</div>
         <h2>Dashboard</h2>
@@ -562,7 +562,11 @@
   </main>
 
   <nav class="tab-bar" id="tab-bar">
-    <button class="tab-btn active" data-tab="info">
+    <button class="tab-btn active" data-tab="dashboard">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M4 20V10M11 20V4M18 20v-7"/></svg>
+      <span>Trends</span>
+    </button>
+    <button class="tab-btn" data-tab="info">
       <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v.01M11 12h1v5h1"/></svg>
       <span>Info</span>
     </button>
@@ -577,10 +581,6 @@
     <button class="tab-btn" data-tab="accountability">
       <svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
       <span>Stop Work</span>
-    </button>
-    <button class="tab-btn" data-tab="dashboard">
-      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M4 20V10M11 20V4M18 20v-7"/></svg>
-      <span>Trends</span>
     </button>
     <button class="tab-btn" data-tab="summary">
       <svg viewBox="0 0 24 24" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
@@ -1371,6 +1371,7 @@
     renderAll();
     loadLookupLists();
     flushPendingSyncs();
+    switchTab("dashboard");
   }
 
   function showSetup(errorMsg) {
