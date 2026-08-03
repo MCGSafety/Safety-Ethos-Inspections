@@ -264,9 +264,18 @@
 
   .freq-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
   .freq-label { flex: 0 0 118px; font-size: 12.5px; color: var(--ink); }
-  .freq-track { flex: 1 1 auto; height: 8px; border-radius: 999px; background: var(--surface); overflow: hidden; }
-  .freq-fill { height: 100%; background: var(--accent); border-radius: 999px; }
-  .freq-count { flex: 0 0 auto; font-size: 11.5px; color: var(--ink-dim); min-width: 32px; text-align: right; }
+  .freq-track { flex: 1 1 auto; height: 8px; border-radius: 2px; background: var(--surface); overflow: hidden; }
+  .freq-fill { height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
+  .freq-count { flex: 0 0 auto; font-size: 11.5px; color: var(--ink-dim); min-width: 32px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  .trend-svg { width: 100%; height: 120px; display: block; margin-top: 4px; overflow: visible; }
+  .trend-axis { stroke: var(--border); stroke-width: 1; }
+  .trend-grid { stroke: var(--border); stroke-width: 1; opacity: 0.6; }
+  .trend-area { fill: var(--risk); opacity: 0.1; stroke: none; }
+  .trend-line { fill: none; stroke: var(--risk); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .trend-tick { font-size: 8px; fill: var(--ink-dim); font-family: inherit; }
+  .trend-endlabel { font-size: 10.5px; font-weight: 700; fill: var(--ink); font-family: inherit; }
+  .trend-caption { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
   .stat-row { display: flex; gap: 10px; margin-bottom: 16px; }
   .stat { flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; }
   .stat .num { font-size: 24px; font-weight: 800; font-family: "Bahnschrift SemiBold","Bahnschrift",sans-serif; }
@@ -1045,6 +1054,59 @@
     return synced.concat(pendingLocal);
   }
 
+  function renderTrendChart(subs) {
+    var buckets = {};
+    subs.forEach(function (r) {
+      if (!r.date) return;
+      var d = new Date(r.date + "T00:00:00");
+      if (isNaN(d.getTime())) return;
+      var weekStart = new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay());
+      var key = weekStart.getFullYear() + "-" + String(weekStart.getMonth() + 1).padStart(2, "0") + "-" + String(weekStart.getDate()).padStart(2, "0");
+      buckets[key] = (buckets[key] || 0) + (r.atRiskTotal || 0);
+    });
+    var weeks = Object.keys(buckets).sort();
+    if (weeks.length < 2) {
+      return '<div class="summary-block"><h3>At-risk observations, by week</h3>' +
+        '<div class="empty-note" style="padding:18px 8px;">Need at least two weeks of walks to plot a trend.</div></div>';
+    }
+
+    var W = 320, H = 120, padL = 22, padR = 10, padT = 14, padB = 18;
+    var innerW = W - padL - padR, innerH = H - padT - padB;
+    var values = weeks.map(function (k) { return buckets[k]; });
+    var maxV = Math.max(1, Math.max.apply(null, values));
+    var baseY = padT + innerH;
+
+    function xAt(i) { return padL + i * (innerW / (weeks.length - 1)); }
+    function yAt(v) { return padT + innerH - (v / maxV) * innerH; }
+
+    var linePts = values.map(function (v, i) { return xAt(i) + "," + yAt(v); });
+    var areaPath = "M" + xAt(0) + "," + baseY + " L" + linePts.join(" L") + " L" + xAt(values.length - 1) + "," + baseY + " Z";
+    var linePath = "M" + linePts.join(" L");
+
+    var lastIdx = values.length - 1;
+    function weekLabel(k) { return new Date(k + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
+
+    var dots = values.map(function (v, i) {
+      var label = "Week of " + weekLabel(weeks[i]) + ": " + v + (v === 1 ? " at-risk observation" : " at-risk observations");
+      return '<circle cx="' + xAt(i) + '" cy="' + yAt(v) + '" r="11" fill="transparent" tabindex="0" role="img" aria-label="' + escapeHtml(label) + '"><title>' + escapeHtml(label) + "</title></circle>" +
+        (i === lastIdx ? '<circle cx="' + xAt(i) + '" cy="' + yAt(v) + '" r="4" fill="var(--risk)" stroke="var(--surface-2)" stroke-width="2"/>' : "");
+    }).join("");
+
+    return '<div class="summary-block"><h3>At-risk observations, by week</h3>' +
+      '<svg viewBox="0 0 ' + W + " " + H + '" class="trend-svg" role="group" aria-label="Weekly at-risk observation trend, ' + weeks.length + ' weeks">' +
+        '<line x1="' + padL + '" y1="' + baseY + '" x2="' + (padL + innerW) + '" y2="' + baseY + '" class="trend-axis"/>' +
+        '<line x1="' + padL + '" y1="' + padT + '" x2="' + (padL + innerW) + '" y2="' + padT + '" class="trend-grid"/>' +
+        '<text x="0" y="' + (baseY + 3) + '" class="trend-tick">0</text>' +
+        '<text x="0" y="' + (padT + 3) + '" class="trend-tick">' + maxV + "</text>" +
+        '<path d="' + areaPath + '" class="trend-area"/>' +
+        '<path d="' + linePath + '" class="trend-line"/>' +
+        dots +
+        '<text x="' + xAt(lastIdx) + '" y="' + (yAt(values[lastIdx]) - 9) + '" text-anchor="end" class="trend-endlabel">' + values[lastIdx] + "</text>" +
+      "</svg>" +
+      '<div class="trend-caption">Week of ' + weekLabel(weeks[0]) + " – " + weekLabel(weeks[lastIdx]) + "</div>" +
+    "</div>";
+  }
+
   function paintDashboard(subs) {
     var wrap = document.getElementById("dashboard-body");
     if (subs.length === 0) {
@@ -1065,6 +1127,8 @@
         '<div class="stat risk"><div class="num">' + totalObs + '</div><div class="lbl">At-risk observations</div></div>' +
         '<div class="stat good"><div class="num">' + (swaRate === null ? "—" : swaRate + "%") + '</div><div class="lbl">Stop-work rate</div></div>' +
       "</div>";
+
+    var trendHtml = renderTrendChart(subs);
 
     var maxFlagged = Math.max(1, subs.length);
     var barsHtml = '<div class="summary-block"><h3>How often each category is flagged</h3>' +
@@ -1089,7 +1153,7 @@
         return '<div class="summary-row recent-row" data-idx="' + idx + '"><span class="k">' + label + '</span><span class="v">' + chip + syncChip + "</span></div>";
       }).join("") + '<button class="add-btn" id="see-all-history-btn" style="margin-top:10px;">See all inspections</button></div>';
 
-    wrap.innerHTML = statsHtml + barsHtml + recentHtml + exportRow() + airtableFooter();
+    wrap.innerHTML = statsHtml + trendHtml + barsHtml + recentHtml + exportRow() + airtableFooter();
     wrap.querySelectorAll(".recent-row").forEach(function (rowEl) {
       rowEl.addEventListener("click", function () { openWalkSheet(recent[Number(rowEl.getAttribute("data-idx"))]); });
     });
