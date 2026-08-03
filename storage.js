@@ -123,8 +123,13 @@ function buildAirtableFields(state, categories) {
 function fromAirtableRecord(rec, categories) {
   var f = rec.fields;
   var categoryFlags = {};
+  var categoryDetails = {};
+  var categoryCounts = {};
   categories.forEach(function (c) {
-    categoryFlags[c.id] = f[SYNC_CATEGORY_LABELS[c.id] + " Status"] === "At Risk";
+    var label = SYNC_CATEGORY_LABELS[c.id];
+    categoryFlags[c.id] = f[label + " Status"] === "At Risk";
+    categoryDetails[c.id] = f[label + " Details"] || "";
+    categoryCounts[c.id] = f[label + " At-Risk Count"] || 0;
   });
   return {
     id: rec.id,
@@ -135,10 +140,13 @@ function fromAirtableRecord(rec, categories) {
     inspector: f["Inspector"] || "",
     accompanied: f["Accompanied By"] || "",
     categoryFlags: categoryFlags,
+    categoryDetails: categoryDetails,
+    categoryCounts: categoryCounts,
     categoriesFlagged: f["Categories Flagged"] || 0,
     atRiskTotal: f["At-Risk Observations"] || 0,
     observationsTotal: f["Observations Logged"] || 0,
     swaUsedCount: f["SWA Used Count"] || 0,
+    stopWorkLog: f["Stop Work Log"] || "",
     notes: f["Additional Notes"] || "",
   };
 }

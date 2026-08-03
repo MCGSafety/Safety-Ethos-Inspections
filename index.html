@@ -258,6 +258,8 @@
   .summary-row { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
   .summary-row:last-child { border-bottom: none; }
   .summary-row .k { color: var(--ink-dim); }
+  .history-row, .recent-row { cursor: pointer; margin: 0 -4px; padding-left: 4px; padding-right: 4px; border-radius: 6px; }
+  .history-row:hover, .recent-row:hover { background: var(--surface); }
   .summary-row .v { text-align: right; font-weight: 600; }
 
   .freq-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
@@ -523,6 +525,16 @@
       <button class="add-btn" id="add-obs-btn">+ Add observation</button>
     </section>
 
+    <!-- HISTORY -->
+    <section class="tab-panel" id="panel-history">
+      <div class="step-head">
+        <div class="kicker">Every walk</div>
+        <h2>Completed inspections</h2>
+        <p>All submitted walks, newest first. Tap one to see the full details.</p>
+      </div>
+      <div id="history-body"></div>
+    </section>
+
     <!-- DASHBOARD -->
     <section class="tab-panel active" id="panel-dashboard">
       <div class="step-head">
@@ -582,6 +594,10 @@
       <svg viewBox="0 0 24 24" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
       <span>Summary</span>
     </button>
+    <button class="tab-btn" data-tab="history">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+      <span>History</span>
+    </button>
     <button class="tab-btn active" data-tab="dashboard">
       <svg viewBox="0 0 24 24" stroke-width="2"><path d="M4 20V10M11 20V4M18 20v-7"/></svg>
       <span>Trends</span>
@@ -611,6 +627,16 @@
       <button id="sheet-close">Close</button>
     </div>
     <div class="sheet-body" id="guide-body"></div>
+  </div>
+
+  <div class="sheet-backdrop" id="walk-backdrop"></div>
+  <div class="sheet" id="walk-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <h2 id="walk-sheet-title">Walk detail</h2>
+      <button id="walk-sheet-close">Close</button>
+    </div>
+    <div class="sheet-body" id="walk-sheet-body"></div>
   </div>
 </div>
 
@@ -925,29 +951,68 @@
   var AIRTABLE_BASE_URL = "https://airtable.com/appQbNmfsZIbqziKp";
   var dashboardCache = null; // last known-good merged submissions list
 
-  function renderDashboard() {
-    var wrap = document.getElementById("dashboard-body");
+  function loadAllSubmissions(onUpdate) {
     var pendingLocal = state.submissions.filter(function (r) { return !r.synced; });
 
     if (dashboardCache) {
-      paintDashboard(mergeSubmissions(dashboardCache, pendingLocal));
+      onUpdate(mergeSubmissions(dashboardCache, pendingLocal));
     } else if (pendingLocal.length) {
-      paintDashboard(pendingLocal);
+      onUpdate(pendingLocal);
     } else {
-      wrap.innerHTML = '<div class="empty-note">Loading dashboard…</div>';
+      onUpdate(null);
     }
 
     atListAll(AIRTABLE_TABLE_NAME, { "sort[0][field]": "Date", "sort[0][direction]": "desc" }).then(function (records) {
       dashboardCache = records.map(function (r) { return fromAirtableRecord(r, CATEGORIES); });
-      paintDashboard(mergeSubmissions(dashboardCache, state.submissions.filter(function (r) { return !r.synced; })));
+      onUpdate(mergeSubmissions(dashboardCache, state.submissions.filter(function (r) { return !r.synced; })));
     }).catch(function (e) {
       if (!dashboardCache) {
-        paintDashboard(state.submissions.slice());
-        var wrap2 = document.getElementById("dashboard-body");
-        wrap2.insertAdjacentHTML("afterbegin", '<div class="banner" style="border-color:var(--risk);">Could not reach Airtable (' + escapeHtml(e.message) + '). Showing this device\'s local history only.</div>');
+        onUpdate(state.submissions.slice(), e);
       }
     });
   }
+
+  function renderDashboard() {
+    loadAllSubmissions(function (subs, err) {
+      if (subs === null) { document.getElementById("dashboard-body").innerHTML = '<div class="empty-note">Loading dashboard…</div>'; return; }
+      paintDashboard(subs);
+      if (err) {
+        document.getElementById("dashboard-body").insertAdjacentHTML("afterbegin", '<div class="banner" style="border-color:var(--risk);">Could not reach Airtable (' + escapeHtml(err.message) + '). Showing this device\'s local history only.</div>');
+      }
+    });
+  }
+
+  function renderHistory() {
+    loadAllSubmissions(function (subs, err) {
+      if (subs === null) { document.getElementById("history-body").innerHTML = '<div class="empty-note">Loading…</div>'; return; }
+      paintHistory(subs);
+      if (err) {
+        document.getElementById("history-body").insertAdjacentHTML("afterbegin", '<div class="banner" style="border-color:var(--risk);">Could not reach Airtable (' + escapeHtml(err.message) + '). Showing this device\'s local history only.</div>');
+      }
+    });
+  }
+
+  var historyRecords = [];
+  function paintHistory(subs) {
+    var wrap = document.getElementById("history-body");
+    if (subs.length === 0) {
+      wrap.innerHTML = '<div class="empty-note"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M4 20V10M11 20V4M18 20v-7"/></svg>' +
+        '<div>No walks submitted yet.<br>Complete a walk and tap <strong>Submit walk &amp; start new</strong> on the Summary tab to see it here.</div></div>';
+      return;
+    }
+    historyRecords = subs.slice().sort(function (a, b) { return (b.submittedAt || "").localeCompare(a.submittedAt || ""); });
+    wrap.innerHTML = '<div class="summary-block">' + historyRecords.map(function (r, idx) {
+      var chip = r.categoriesFlagged > 0 ? '<span class="chip risk">' + r.categoriesFlagged + ' flagged</span>' : '<span class="chip good">Clear</span>';
+      var syncChip = r.synced === false ? ' <span class="chip pending">Pending sync</span>' : "";
+      var label = escapeHtml(r.site || "Unnamed site") + (r.date ? " · " + r.date : "") + (r.area ? " · " + escapeHtml(r.area) : "");
+      return '<div class="summary-row history-row" data-idx="' + idx + '"><span class="k">' + label + '</span><span class="v">' + chip + syncChip + "</span></div>";
+    }).join("") + "</div>";
+  }
+  document.getElementById("history-body").addEventListener("click", function (e) {
+    var row = e.target.closest(".history-row");
+    if (!row) return;
+    openWalkSheet(historyRecords[Number(row.getAttribute("data-idx"))]);
+  });
 
   function mergeSubmissions(synced, pendingLocal) {
     return synced.concat(pendingLocal);
@@ -990,13 +1055,19 @@
       return (b.submittedAt || "").localeCompare(a.submittedAt || "");
     }).slice(0, 8);
     var recentHtml = '<div class="summary-block"><h3>Recent walks</h3>' +
-      recent.map(function (r) {
+      recent.map(function (r, idx) {
         var chip = r.categoriesFlagged > 0 ? '<span class="chip risk">' + r.categoriesFlagged + ' flagged</span>' : '<span class="chip good">Clear</span>';
         var syncChip = r.synced === false ? ' <span class="chip pending">Pending sync</span>' : "";
-        return '<div class="summary-row"><span class="k">' + escapeHtml(r.site || "Unnamed site") + (r.date ? " · " + r.date : "") + '</span><span class="v">' + chip + syncChip + "</span></div>";
-      }).join("") + "</div>";
+        var label = escapeHtml(r.site || "Unnamed site") + (r.date ? " · " + r.date : "");
+        return '<div class="summary-row recent-row" data-idx="' + idx + '"><span class="k">' + label + '</span><span class="v">' + chip + syncChip + "</span></div>";
+      }).join("") + '<button class="add-btn" id="see-all-history-btn" style="margin-top:10px;">See all inspections</button></div>';
 
     wrap.innerHTML = statsHtml + barsHtml + recentHtml + exportRow() + airtableFooter();
+    wrap.querySelectorAll(".recent-row").forEach(function (rowEl) {
+      rowEl.addEventListener("click", function () { openWalkSheet(recent[Number(rowEl.getAttribute("data-idx"))]); });
+    });
+    var seeAllBtn = document.getElementById("see-all-history-btn");
+    if (seeAllBtn) seeAllBtn.addEventListener("click", function () { switchTab("history"); });
     var exportBtn = document.getElementById("export-btn");
     if (exportBtn) exportBtn.addEventListener("click", handleExport);
   }
@@ -1287,7 +1358,7 @@
   }
 
   /* ---------------- TABS ---------------- */
-  var TAB_TITLES = { info: "Safety Ethos in Action", awareness: "Step 1 · Awareness", action: "Step 2 · Action", accountability: "Step 3 · Accountability", dashboard: "Dashboard", summary: "Walk Summary" };
+  var TAB_TITLES = { info: "Safety Ethos in Action", awareness: "Step 1 · Awareness", action: "Step 2 · Action", accountability: "Step 3 · Accountability", history: "Completed Inspections", dashboard: "Dashboard", summary: "Walk Summary" };
   function switchTab(name) {
     document.querySelectorAll(".tab-panel").forEach(function (p) { p.classList.remove("active"); });
     document.getElementById("panel-" + name).classList.add("active");
@@ -1297,6 +1368,7 @@
     if (name === "summary") renderSummary();
     if (name === "action") renderAction();
     if (name === "dashboard") renderDashboard();
+    if (name === "history") renderHistory();
   }
   document.getElementById("tab-bar").addEventListener("click", function (e) {
     var btn = e.target.closest(".tab-btn");
@@ -1349,6 +1421,51 @@
   document.getElementById("guide-btn").addEventListener("click", openSheet);
   document.getElementById("sheet-close").addEventListener("click", closeSheet);
   backdrop.addEventListener("click", closeSheet);
+
+  /* ---------------- WALK DETAIL SHEET ---------------- */
+  var walkSheet = document.getElementById("walk-sheet");
+  var walkBackdrop = document.getElementById("walk-backdrop");
+
+  function getWalkDetail(record) {
+    if (record._fields) {
+      return fromAirtableRecord({ id: record.id, createdTime: record.submittedAt, fields: record._fields }, CATEGORIES);
+    }
+    return record;
+  }
+
+  function walkDetailRow(k, v) {
+    return '<div class="summary-row"><span class="k">' + k + '</span><span class="v">' + escapeHtml(String(v)) + "</span></div>";
+  }
+
+  function openWalkSheet(record) {
+    if (!record) return;
+    var d = getWalkDetail(record);
+    document.getElementById("walk-sheet-title").textContent = (d.site || "Unnamed site") + (d.date ? " — " + d.date : "");
+
+    var headRows = walkDetailRow("Area inspected", d.area || "—") +
+      walkDetailRow("Inspector", d.inspector || "—") +
+      (d.accompanied ? walkDetailRow("Accompanied by", d.accompanied) : "") +
+      (d.synced === false ? '<div class="summary-row"><span class="k">Sync status</span><span class="v"><span class="chip pending">Pending sync</span></span></div>' : "");
+
+    var catHtml = '<div class="g-sub" style="margin-top:14px;">Categories</div>' + CATEGORIES.map(function (c) {
+      var flagged = d.categoryFlags && d.categoryFlags[c.id];
+      var count = d.categoryCounts ? d.categoryCounts[c.id] : 0;
+      var chip = flagged ? '<span class="chip risk">At risk' + (count ? " · " + count : "") + '</span>' : '<span class="chip good">Clear</span>';
+      var details = d.categoryDetails && d.categoryDetails[c.id];
+      return '<div class="summary-row"><span class="k">' + c.label + '</span><span class="v">' + chip + "</span></div>" +
+        (details ? '<div style="font-size:12.5px; color:var(--ink-dim); margin:-2px 0 8px; white-space:pre-line;">' + escapeHtml(details) + "</div>" : "");
+    }).join("");
+
+    var swaHtml = d.stopWorkLog ? '<div class="g-sub" style="margin-top:14px;">Stop Work Log</div><div style="font-size:12.5px; white-space:pre-line;">' + escapeHtml(d.stopWorkLog) + "</div>" : "";
+    var notesHtml = d.notes ? '<div class="g-sub" style="margin-top:14px;">Additional notes</div><div style="font-size:12.5px; white-space:pre-line;">' + escapeHtml(d.notes) + "</div>" : "";
+
+    document.getElementById("walk-sheet-body").innerHTML = headRows + catHtml + swaHtml + notesHtml;
+    walkSheet.classList.add("open");
+    walkBackdrop.classList.add("open");
+  }
+  function closeWalkSheet() { walkSheet.classList.remove("open"); walkBackdrop.classList.remove("open"); }
+  document.getElementById("walk-sheet-close").addEventListener("click", closeWalkSheet);
+  walkBackdrop.addEventListener("click", closeWalkSheet);
 
   /* ---------------- UTIL ---------------- */
   function escapeHtml(str) {
