@@ -268,13 +268,15 @@
   .freq-fill { height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
   .freq-count { flex: 0 0 auto; font-size: 11.5px; color: var(--ink-dim); min-width: 32px; text-align: right; font-variant-numeric: tabular-nums; }
 
-  .trend-axis { stroke: var(--border); stroke-width: 1; }
   .trend-caption { font-size: 11px; color: var(--ink-dim); margin-top: 8px; }
-  .mini-chart-list { display: flex; flex-direction: column; gap: 14px; margin-top: 6px; }
-  .mini-chart-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; }
-  .mini-chart-site { font-size: 12.5px; font-weight: 700; color: var(--ink); }
-  .mini-chart-total { font-size: 11.5px; font-weight: 700; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
-  .mini-chart-svg { width: 100%; height: 40px; display: block; overflow: visible; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 6px; }
+  .data-table th {
+    text-align: right; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--ink-dim); font-weight: 700; padding: 0 0 7px; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  .data-table td { text-align: right; padding: 8px 0 8px 10px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; color: var(--ink); }
+  .data-table th:first-child, .data-table td:first-child { text-align: left; padding-left: 0; font-weight: 700; color: var(--ink); }
+  .data-table tr:last-child td { border-bottom: none; }
   .stat-row { display: flex; gap: 10px; margin-bottom: 16px; }
   .stat { flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; }
   .stat .num { font-size: 24px; font-weight: 800; font-family: "Bahnschrift SemiBold","Bahnschrift",sans-serif; }
@@ -1061,53 +1063,36 @@
   }
   function weekLabelOf(k) { return new Date(k + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
 
-  function renderSmallMultiples(subs, opts) {
+  function renderSiteWeekTable(subs, opts) {
     var buckets = {}, siteTotal = {};
     subs.forEach(function (r) {
       var key = r.date ? weekKeyOf(r.date) : null;
       if (!key) return;
       var site = r.site || "Unnamed site";
       var v = opts.valueOf(r);
-      if (!v) return;
       if (!buckets[key]) buckets[key] = {};
       buckets[key][site] = (buckets[key][site] || 0) + v;
       siteTotal[site] = (siteTotal[site] || 0) + v;
     });
     var weeks = Object.keys(buckets).sort();
-    if (weeks.length < 2) {
+    if (weeks.length === 0) {
       return '<div class="summary-block"><h3>' + opts.title + '</h3>' +
-        '<div class="empty-note" style="padding:18px 8px;">Need at least two weeks of walks to plot this.</div></div>';
+        '<div class="empty-note" style="padding:18px 8px;">No walks logged yet.</div></div>';
     }
 
+    var thisWeek = weeks[weeks.length - 1];
+    var lastWeek = weeks.length > 1 ? weeks[weeks.length - 2] : null;
     var sites = Object.keys(siteTotal).sort(function (a, b) { return siteTotal[b] - siteTotal[a]; });
-    var W = 320, H = 40;
-    var slot = W / weeks.length;
-    var barW = Math.max(4, Math.min(14, slot * 0.55));
 
     var rowsHtml = sites.map(function (site) {
-      var values = weeks.map(function (wk) { return (buckets[wk] && buckets[wk][site]) || 0; });
-      var maxV = Math.max(1, Math.max.apply(null, values));
-      var bars = values.map(function (v, i) {
-        if (v === 0) return "";
-        var x = i * slot + (slot - barW) / 2;
-        var h = Math.max(2, (v / maxV) * (H - 6));
-        var y = H - h;
-        var label = site + " — week of " + weekLabelOf(weeks[i]) + ": " + opts.unitLabel(v);
-        return '<rect x="' + x + '" y="' + y + '" width="' + barW + '" height="' + h + '" rx="3" ry="3" fill="' + opts.color +
-          '" tabindex="0" role="img" aria-label="' + escapeHtml(label) + '"><title>' + escapeHtml(label) + "</title></rect>";
-      }).join("");
-      return '<div class="mini-chart-row">' +
-        '<div class="mini-chart-head"><span class="mini-chart-site">' + escapeHtml(site) + '</span><span class="mini-chart-total">' + opts.unitLabel(siteTotal[site]) + "</span></div>" +
-        '<svg viewBox="0 0 ' + W + " " + H + '" class="mini-chart-svg" role="img" aria-label="' + escapeHtml(site + " weekly trend") + '">' +
-          '<line x1="0" y1="' + H + '" x2="' + W + '" y2="' + H + '" class="trend-axis"/>' +
-          bars +
-        "</svg>" +
-      "</div>";
+      var thisV = (buckets[thisWeek] && buckets[thisWeek][site]) || 0;
+      var lastV = lastWeek ? ((buckets[lastWeek] && buckets[lastWeek][site]) || 0) : null;
+      return "<tr><td>" + escapeHtml(site) + "</td><td>" + thisV + "</td><td>" + (lastV === null ? "—" : lastV) + "</td><td>" + siteTotal[site] + "</td></tr>";
     }).join("");
 
     return '<div class="summary-block"><h3>' + opts.title + '</h3>' +
-      '<div class="mini-chart-list">' + rowsHtml + "</div>" +
-      '<div class="trend-caption">Week of ' + weekLabelOf(weeks[0]) + " – " + weekLabelOf(weeks[weeks.length - 1]) + "</div>" +
+      '<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Site</th><th>This wk</th><th>Last wk</th><th>Total</th></tr></thead><tbody>' + rowsHtml + "</tbody></table></div>" +
+      '<div class="trend-caption">Week of ' + weekLabelOf(thisWeek) + "</div>" +
     "</div>";
   }
 
@@ -1147,17 +1132,13 @@
         '<div class="stat good"><div class="num">' + (swaRate === null ? "—" : swaRate + "%") + '</div><div class="lbl">Stop-work rate</div></div>' +
       "</div>";
 
-    var trendHtml = renderSmallMultiples(subs, {
+    var trendHtml = renderSiteWeekTable(subs, {
       title: "At-risk observations, by week",
-      valueOf: function (r) { return r.atRiskTotal || 0; },
-      unitLabel: function (v) { return v + (v === 1 ? " at-risk observation" : " at-risk observations"); },
-      color: "var(--risk)"
+      valueOf: function (r) { return r.atRiskTotal || 0; }
     });
-    var walksBySiteHtml = renderSmallMultiples(subs, {
+    var walksBySiteHtml = renderSiteWeekTable(subs, {
       title: "Completed walks, by week",
-      valueOf: function () { return 1; },
-      unitLabel: function (v) { return v + (v === 1 ? " walk" : " walks"); },
-      color: "var(--accent)"
+      valueOf: function () { return 1; }
     });
 
     var maxFlagged = Math.max(1, subs.length);
