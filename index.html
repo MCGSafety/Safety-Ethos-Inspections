@@ -1071,9 +1071,14 @@
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
   }
   function monthLabelOf(k) { return new Date(k + "-01T00:00:00").toLocaleDateString(undefined, { month: "long", year: "numeric" }); }
+  function prevMonthKeyOf(monthKey) {
+    var parts = monthKey.split("-");
+    var d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 2, 1);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  }
 
   function renderSiteWeekTable(subs, opts) {
-    var weekBuckets = {}, monthTotal = {}, siteNames = {};
+    var weekBuckets = {}, monthTotal = {}, prevMonthTotal = {}, siteNames = {};
     subs.forEach(function (r) {
       var wk = r.date ? weekKeyOf(r.date) : null;
       if (!wk) return;
@@ -1092,30 +1097,39 @@
     var thisWeek = weeks[weeks.length - 1];
     var lastWeek = weeks.length > 1 ? weeks[weeks.length - 2] : null;
     var monthKey = monthKeyOf(thisWeek);
+    var prevMonthKey = prevMonthKeyOf(monthKey);
 
     subs.forEach(function (r) {
-      if (!r.date || monthKeyOf(r.date) !== monthKey) return;
+      if (!r.date) return;
+      var rMonthKey = monthKeyOf(r.date);
       var site = r.site || "Unnamed site";
-      monthTotal[site] = (monthTotal[site] || 0) + opts.valueOf(r);
-      siteNames[site] = true;
+      if (rMonthKey === monthKey) {
+        monthTotal[site] = (monthTotal[site] || 0) + opts.valueOf(r);
+        siteNames[site] = true;
+      } else if (rMonthKey === prevMonthKey) {
+        prevMonthTotal[site] = (prevMonthTotal[site] || 0) + opts.valueOf(r);
+        siteNames[site] = true;
+      }
     });
 
     var sites = Object.keys(siteNames).sort(function (a, b) { return (monthTotal[b] || 0) - (monthTotal[a] || 0); });
 
-    var sumThis = 0, sumLast = 0, sumMonth = 0;
+    var sumThis = 0, sumLast = 0, sumMonth = 0, sumPrevMonth = 0;
     var rowsHtml = sites.map(function (site) {
       var thisV = (weekBuckets[thisWeek] && weekBuckets[thisWeek][site]) || 0;
       var lastV = lastWeek ? ((weekBuckets[lastWeek] && weekBuckets[lastWeek][site]) || 0) : null;
       var monthV = monthTotal[site] || 0;
+      var prevMonthV = prevMonthTotal[site] || 0;
       sumThis += thisV;
       sumLast += lastV || 0;
       sumMonth += monthV;
-      return "<tr><td>" + escapeHtml(site) + "</td><td>" + thisV + "</td><td>" + (lastV === null ? "—" : lastV) + "</td><td>" + monthV + "</td></tr>";
+      sumPrevMonth += prevMonthV;
+      return "<tr><td>" + escapeHtml(site) + "</td><td>" + thisV + "</td><td>" + (lastV === null ? "—" : lastV) + "</td><td>" + monthV + "</td><td>" + prevMonthV + "</td></tr>";
     }).join("");
-    var totalRowHtml = "<tr class=\"data-table-total\"><td>All sites</td><td>" + sumThis + "</td><td>" + (lastWeek === null ? "—" : sumLast) + "</td><td>" + sumMonth + "</td></tr>";
+    var totalRowHtml = "<tr class=\"data-table-total\"><td>All sites</td><td>" + sumThis + "</td><td>" + (lastWeek === null ? "—" : sumLast) + "</td><td>" + sumMonth + "</td><td>" + sumPrevMonth + "</td></tr>";
 
     return '<div class="summary-block"><h3>' + opts.title + '</h3>' +
-      '<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Site</th><th>This wk</th><th>Last wk</th><th>' + monthLabelOf(monthKey) + '</th></tr></thead><tbody>' + rowsHtml + totalRowHtml + "</tbody></table></div>" +
+      '<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Site</th><th>This wk</th><th>Last wk</th><th>' + monthLabelOf(monthKey) + '</th><th>' + monthLabelOf(prevMonthKey) + '</th></tr></thead><tbody>' + rowsHtml + totalRowHtml + "</tbody></table></div>" +
       '<div class="trend-caption">Week of ' + weekLabelOf(thisWeek) + "</div>" +
     "</div>";
   }
