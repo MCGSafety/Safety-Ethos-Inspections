@@ -576,7 +576,7 @@
       <div class="step-head">
         <div class="kicker">By location</div>
         <h2>Sites</h2>
-        <p>Completed inspections filtered by site.</p>
+        <p>Completed inspections filtered by site and inspector.</p>
       </div>
       <div id="sitelocation-body"></div>
     </section>
@@ -1055,17 +1055,35 @@
   }
 
   var siteLocationFilter = "";
+  var siteLocationInspectorFilter = "";
   var siteLocationRecords = [];
   function paintSiteLocation(allSubs) {
     var wrap = document.getElementById("sitelocation-body");
     var sites = Array.from(new Set(allSubs.map(function (r) { return r.site || "Unnamed site"; }))).sort();
+    var inspectors = Array.from(new Set(allSubs.map(function (r) { return r.inspector || "Unknown inspector"; }))).sort();
     if (siteLocationFilter && sites.indexOf(siteLocationFilter) === -1) siteLocationFilter = "";
-    var subs = siteLocationFilter ? allSubs.filter(function (r) { return (r.site || "Unnamed site") === siteLocationFilter; }) : allSubs;
+    if (siteLocationInspectorFilter && inspectors.indexOf(siteLocationInspectorFilter) === -1) siteLocationInspectorFilter = "";
+    var subs = allSubs.filter(function (r) {
+      if (siteLocationFilter && (r.site || "Unnamed site") !== siteLocationFilter) return false;
+      if (siteLocationInspectorFilter && (r.inspector || "Unknown inspector") !== siteLocationInspectorFilter) return false;
+      return true;
+    });
 
-    var filterHtml = '<div class="field" style="margin-bottom:16px;"><label for="sitelocation-site-filter">Site</label><select id="sitelocation-site-filter"><option value=""' +
-      (siteLocationFilter ? "" : " selected") + '>All sites</option>' +
-      sites.map(function (s) { return '<option value="' + escapeHtml(s) + '"' + (s === siteLocationFilter ? " selected" : "") + ">" + escapeHtml(s) + "</option>"; }).join("") +
-      "</select></div>";
+    var filterHtml = '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">' +
+      '<div class="field" style="flex:1 1 160px;margin-bottom:0;"><label for="sitelocation-site-filter">Site</label><select id="sitelocation-site-filter"><option value=""' +
+        (siteLocationFilter ? "" : " selected") + '>All sites</option>' +
+        sites.map(function (s) { return '<option value="' + escapeHtml(s) + '"' + (s === siteLocationFilter ? " selected" : "") + ">" + escapeHtml(s) + "</option>"; }).join("") +
+        "</select></div>" +
+      '<div class="field" style="flex:1 1 160px;margin-bottom:0;"><label for="sitelocation-inspector-filter">Inspector</label><select id="sitelocation-inspector-filter"><option value=""' +
+        (siteLocationInspectorFilter ? "" : " selected") + '>All inspectors</option>' +
+        inspectors.map(function (i) { return '<option value="' + escapeHtml(i) + '"' + (i === siteLocationInspectorFilter ? " selected" : "") + ">" + escapeHtml(i) + "</option>"; }).join("") +
+        "</select></div>" +
+    "</div>";
+
+    function wireFilters() {
+      document.getElementById("sitelocation-site-filter").addEventListener("change", function (e) { siteLocationFilter = e.target.value; paintSiteLocation(allSubs); });
+      document.getElementById("sitelocation-inspector-filter").addEventListener("change", function (e) { siteLocationInspectorFilter = e.target.value; paintSiteLocation(allSubs); });
+    }
 
     if (allSubs.length === 0) {
       wrap.innerHTML = '<div class="empty-note"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M4 20V10M11 20V4M18 20v-7"/></svg>' +
@@ -1074,8 +1092,8 @@
     }
 
     if (subs.length === 0) {
-      wrap.innerHTML = filterHtml + '<div class="empty-note">No completed inspections for this site yet.</div>';
-      document.getElementById("sitelocation-site-filter").addEventListener("change", function (e) { siteLocationFilter = e.target.value; paintSiteLocation(allSubs); });
+      wrap.innerHTML = filterHtml + '<div class="empty-note">No completed inspections match these filters.</div>';
+      wireFilters();
       return;
     }
 
@@ -1085,12 +1103,13 @@
       var chip = r.categoriesFlagged > 0 ? '<span class="chip risk">' + r.categoriesFlagged + ' flagged</span>' : '<span class="chip good">Clear</span>';
       var syncChip = r.synced === false ? ' <span class="chip pending">Pending sync</span>' : "";
       var siteLabel = siteLocationFilter ? "" : escapeHtml(r.site || "Unnamed site") + " · ";
-      var label = siteLabel + (r.date || "—") + (r.area ? " · " + escapeHtml(r.area) : "");
+      var inspectorLabel = siteLocationInspectorFilter ? "" : " · " + escapeHtml(r.inspector || "Unknown inspector");
+      var label = siteLabel + (r.date || "—") + (r.area ? " · " + escapeHtml(r.area) : "") + inspectorLabel;
       return '<div class="summary-row history-row" data-idx="' + idx + '"><span class="k">' + label + '</span><span class="v">' + chip + syncChip + "</span></div>";
     }).join("");
 
     wrap.innerHTML = filterHtml + '<div class="summary-block">' + rowsHtml + "</div>";
-    document.getElementById("sitelocation-site-filter").addEventListener("change", function (e) { siteLocationFilter = e.target.value; paintSiteLocation(allSubs); });
+    wireFilters();
   }
   document.getElementById("sitelocation-body").addEventListener("click", function (e) {
     var row = e.target.closest(".history-row");
