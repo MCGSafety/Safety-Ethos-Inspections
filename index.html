@@ -279,6 +279,8 @@
   .data-table tr:last-child td { border-bottom: none; }
   .data-table-total td { font-weight: 700; color: var(--ink); border-top: 1px solid var(--border); padding-top: 9px; }
   .data-table-total td:first-child { color: var(--ink-dim); font-weight: 700; }
+  .v-good { color: var(--good); }
+  .v-bad { color: var(--risk); }
   .stat-row { display: flex; gap: 10px; margin-bottom: 16px; }
   .stat { flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; }
   .stat .num { font-size: 24px; font-weight: 800; font-family: "Bahnschrift SemiBold","Bahnschrift",sans-serif; }
@@ -1126,7 +1128,9 @@
       sumPrevMonth += prevMonthV;
       return "<tr><td>" + escapeHtml(site) + "</td><td>" + thisV + "</td><td>" + (lastV === null ? "—" : lastV) + "</td><td>" + monthV + "</td><td>" + prevMonthV + "</td></tr>";
     }).join("");
-    var totalRowHtml = "<tr class=\"data-table-total\"><td>All sites</td><td>" + sumThis + "</td><td>" + (lastWeek === null ? "—" : sumLast) + "</td><td>" + sumMonth + "</td><td>" + sumPrevMonth + "</td></tr>";
+    var sumThisCell = sumThis;
+    if (opts.weeklyGoal) sumThisCell = '<span class="' + (sumThis >= opts.weeklyGoal ? "v-good" : "v-bad") + '">' + sumThis + "</span>";
+    var totalRowHtml = "<tr class=\"data-table-total\"><td>All sites</td><td>" + sumThisCell + "</td><td>" + (lastWeek === null ? "—" : sumLast) + "</td><td>" + sumMonth + "</td><td>" + sumPrevMonth + "</td></tr>";
 
     return '<div class="summary-block"><h3>' + opts.title + '</h3>' +
       '<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Site</th><th>This wk</th><th>Last wk</th><th>' + monthLabelOf(monthKey) + '</th><th>' + monthLabelOf(prevMonthKey) + '</th></tr></thead><tbody>' + rowsHtml + totalRowHtml + "</tbody></table></div>" +
@@ -1176,7 +1180,8 @@
     });
     var walksBySiteHtml = renderSiteWeekTable(subs, {
       title: "Completed walks, by week",
-      valueOf: function () { return 1; }
+      valueOf: function () { return 1; },
+      weeklyGoal: 5
     });
 
     var maxFlagged = Math.max(1, subs.length);
