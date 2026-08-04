@@ -78,7 +78,10 @@ var SYNC_CATEGORY_LABELS = {
 
 function categoryDetailsText(awareness, action) {
   var parts = [];
-  if (awareness.notes) parts.push("Notes: " + awareness.notes);
+  var notes = (awareness.notes || []).filter(function (n) { return n && n.trim(); });
+  if (notes.length) {
+    parts.push("Observations:\n" + notes.map(function (n, i) { return (i + 1) + ". " + n; }).join("\n"));
+  }
   if (action.qualified === "yes") parts.push("Actioned directly by inspector.");
   if (action.qualified === "no") parts.push("Assigned to: " + (action.accountable || "unnamed"));
   if (action.correctiveAction) parts.push("Corrective action: " + action.correctiveAction);

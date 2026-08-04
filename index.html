@@ -248,6 +248,7 @@
     position: absolute; top: 10px; right: 10px; background: none; border: none;
     color: var(--ink-dim); font-size: 12px; cursor: pointer; padding: 4px 6px;
   }
+  .inline-remove { background: none; border: none; color: var(--ink-dim); font-size: 12px; cursor: pointer; padding: 2px 4px; }
   .add-btn {
     width: 100%; padding: 12px; border-radius: 10px; border: 1.5px dashed var(--border);
     background: transparent; color: var(--accent); font-weight: 700; font-size: 13.5px; cursor: pointer;
@@ -770,7 +771,7 @@
   function defaultState() {
     var awareness = {}, action = {};
     CATEGORIES.forEach(function (c) {
-      awareness[c.id] = { status: null, tally: 0, notes: "" };
+      awareness[c.id] = { status: null, tally: 0, notes: [] };
       action[c.id] = { qualified: null, accountable: "", correctiveAction: "" };
     });
     return {
@@ -788,11 +789,17 @@
       if (!raw) return defaultState();
       var parsed = JSON.parse(raw);
       var base = defaultState();
-      return Object.assign(base, parsed, {
+      var merged = Object.assign(base, parsed, {
         awareness: Object.assign(base.awareness, parsed.awareness),
         action: Object.assign(base.action, parsed.action),
         submissions: parsed.submissions || []
       });
+      Object.keys(merged.awareness).forEach(function (id) {
+        var aw = merged.awareness[id];
+        if (!Array.isArray(aw.notes)) aw.notes = aw.notes ? [aw.notes] : [];
+        aw.tally = aw.notes.length;
+      });
+      return merged;
     } catch (e) { return defaultState(); }
   }
 
@@ -826,16 +833,18 @@
         : '<span class="chip risk">At risk</span>';
       var reveal = s.status === "no" ? (
         '<div class="reveal">' +
-          '<label style="font-size:12.5px;font-weight:600;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.04em;">At-risk observations</label>' +
-          '<div class="stepper" style="margin-top:8px;">' +
-            '<button type="button" data-act="tally-dec" data-cat="' + c.id + '">–</button>' +
-            '<span class="count">' + s.tally + '</span>' +
-            '<button type="button" data-act="tally-inc" data-cat="' + c.id + '">+</button>' +
-          '</div>' +
-          '<div class="field" style="margin-top:12px;margin-bottom:0;">' +
-            '<label>Notes — what did you see?</label>' +
-            '<textarea data-act="notes" data-cat="' + c.id + '" placeholder="Briefly describe the at-risk behavior...">' + escapeHtml(s.notes) + '</textarea>' +
-          '</div>' +
+          '<label style="font-size:12.5px;font-weight:600;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.04em;">At-risk observations (' + s.notes.length + ')</label>' +
+          s.notes.map(function (n, i) {
+            return '<div class="field" style="margin-top:10px;margin-bottom:0;">' +
+              '<div style="display:flex;justify-content:space-between;align-items:baseline;">' +
+                '<label style="margin-bottom:4px;">Observation #' + (i + 1) + ' — what did you see?</label>' +
+                '<button type="button" class="inline-remove" data-act="cat-note-remove" data-cat="' + c.id + '" data-idx="' + i + '">Remove</button>' +
+              '</div>' +
+              '<textarea data-act="cat-note" data-cat="' + c.id + '" data-idx="' + i + '" placeholder="Briefly describe the at-risk behavior...">' + escapeHtml(n) + '</textarea>' +
+            '</div>';
+          }).join("") +
+          (s.notes.length === 0 ? '<div class="empty-note" style="padding:14px 0;">No observations added yet.</div>' : "") +
+          '<button type="button" class="add-btn" data-act="cat-note-add" data-cat="' + c.id + '" style="margin-top:10px;">+ Add observation</button>' +
         '</div>'
       ) : "";
       return '<div class="card">' +
@@ -856,17 +865,21 @@
     var cat = btn.getAttribute("data-cat");
     var act = btn.getAttribute("data-act");
     var s = state.awareness[cat];
-    if (act === "status") { s.status = btn.getAttribute("data-val"); if (s.status === "yes") { s.tally = 0; } }
-    if (act === "tally-inc") s.tally = Math.min(99, s.tally + 1);
-    if (act === "tally-dec") s.tally = Math.max(0, s.tally - 1);
+    if (act === "status") {
+      s.status = btn.getAttribute("data-val");
+      if (s.status === "yes") { s.tally = 0; s.notes = []; }
+      if (s.status === "no" && s.notes.length === 0) { s.notes.push(""); s.tally = 1; }
+    }
+    if (act === "cat-note-add") { s.notes.push(""); s.tally = s.notes.length; }
+    if (act === "cat-note-remove") { s.notes.splice(Number(btn.getAttribute("data-idx")), 1); s.tally = s.notes.length; }
     renderAwareness();
     renderTabDots();
     scheduleSave();
   });
   document.getElementById("awareness-cards").addEventListener("input", function (e) {
     var t = e.target;
-    if (t.getAttribute("data-act") === "notes") {
-      state.awareness[t.getAttribute("data-cat")].notes = t.value;
+    if (t.getAttribute("data-act") === "cat-note") {
+      state.awareness[t.getAttribute("data-cat")].notes[Number(t.getAttribute("data-idx"))] = t.value;
       scheduleSave();
     }
   });
@@ -1408,7 +1421,8 @@
     CATEGORIES.forEach(function (c) {
       var s = state.awareness[c.id];
       var v = s.status === null ? "Pending" : s.status === "yes" ? "Yes (clear)" : "No — " + s.tally + " at-risk observation(s)";
-      lines.push("- " + c.label + ": " + v + (s.notes ? " | Notes: " + s.notes : ""));
+      var notesList = (s.notes || []).filter(function (n) { return n && n.trim(); });
+      lines.push("- " + c.label + ": " + v + (notesList.length ? " | " + notesList.map(function (n, i) { return (i + 1) + ". " + n; }).join("; ") : ""));
     });
     lines.push("");
     lines.push("STEP 2 — ACTION");
