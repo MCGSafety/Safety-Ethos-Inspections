@@ -28,9 +28,6 @@
     --risk-soft: #f8e2e0;
     --shadow: 0 1px 2px rgba(20,20,15,0.06), 0 8px 24px rgba(20,20,15,0.08);
     --radius: 14px;
-    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
-    --series-5: #e87ba4; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948;
-    --series-other: #9a9a95;
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
@@ -49,9 +46,6 @@
       --risk: #ff6b62;
       --risk-soft: #3a1d1c;
       --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 28px rgba(0,0,0,0.4);
-      --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
-      --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
-      --series-other: #5a5a56;
       color-scheme: dark;
     }
   }
@@ -61,9 +55,6 @@
     --accent-soft: #3a2f10; --good: #49c46e; --good-soft: #163521;
     --risk: #ff6b62; --risk-soft: #3a1d1c;
     --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 28px rgba(0,0,0,0.4);
-    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
-    --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
-    --series-other: #5a5a56;
     color-scheme: dark;
   }
   :root[data-theme="light"] {
@@ -72,9 +63,6 @@
     --accent-soft: #f3e2c8; --good: #1f7a3d; --good-soft: #e0f0e4;
     --risk: #b3261e; --risk-soft: #f8e2e0;
     --shadow: 0 1px 2px rgba(20,20,15,0.06), 0 8px 24px rgba(20,20,15,0.08);
-    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
-    --series-5: #e87ba4; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948;
-    --series-other: #9a9a95;
     color-scheme: light;
   }
 
@@ -280,14 +268,13 @@
   .freq-fill { height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
   .freq-count { flex: 0 0 auto; font-size: 11.5px; color: var(--ink-dim); min-width: 32px; text-align: right; font-variant-numeric: tabular-nums; }
 
-  .trend-svg { width: 100%; height: 150px; display: block; margin-top: 4px; overflow: visible; }
   .trend-axis { stroke: var(--border); stroke-width: 1; }
-  .trend-grid { stroke: var(--border); stroke-width: 1; opacity: 0.6; }
-  .trend-tick { font-size: 8px; fill: var(--ink-dim); font-family: inherit; }
-  .trend-caption { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
-  .chart-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; }
-  .chart-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-dim); }
-  .chart-legend-swatch { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto; }
+  .trend-caption { font-size: 11px; color: var(--ink-dim); margin-top: 8px; }
+  .mini-chart-list { display: flex; flex-direction: column; gap: 14px; margin-top: 6px; }
+  .mini-chart-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; }
+  .mini-chart-site { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+  .mini-chart-total { font-size: 11.5px; font-weight: 700; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  .mini-chart-svg { width: 100%; height: 40px; display: block; overflow: visible; }
   .stat-row { display: flex; gap: 10px; margin-bottom: 16px; }
   .stat { flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; }
   .stat .num { font-size: 24px; font-weight: 800; font-family: "Bahnschrift SemiBold","Bahnschrift",sans-serif; }
@@ -1066,7 +1053,6 @@
     return synced.concat(pendingLocal);
   }
 
-  var SERIES_SLOTS = 8;
   function weekKeyOf(dateStr) {
     var d = new Date(dateStr + "T00:00:00");
     if (isNaN(d.getTime())) return null;
@@ -1075,7 +1061,7 @@
   }
   function weekLabelOf(k) { return new Date(k + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
 
-  function renderStackedWeeklyChart(subs, opts) {
+  function renderSmallMultiples(subs, opts) {
     var buckets = {}, siteTotal = {};
     subs.forEach(function (r) {
       var key = r.date ? weekKeyOf(r.date) : null;
@@ -1093,64 +1079,34 @@
         '<div class="empty-note" style="padding:18px 8px;">Need at least two weeks of walks to plot this.</div></div>';
     }
 
-    var allSites = Object.keys(siteTotal).sort(function (a, b) { return siteTotal[b] - siteTotal[a]; });
-    var shownSites = allSites.slice(0, SERIES_SLOTS);
-    var hasOther = allSites.length > SERIES_SLOTS;
-    var seriesNames = hasOther ? shownSites.concat(["Other"]) : shownSites;
-    function seriesFor(site) { var i = shownSites.indexOf(site); return i === -1 ? "Other" : site; }
-    function colorFor(name) { return name === "Other" ? "var(--series-other)" : "var(--series-" + (shownSites.indexOf(name) + 1) + ")"; }
+    var sites = Object.keys(siteTotal).sort(function (a, b) { return siteTotal[b] - siteTotal[a]; });
+    var W = 320, H = 40;
+    var slot = W / weeks.length;
+    var barW = Math.max(4, Math.min(14, slot * 0.55));
 
-    var W = 320, H = 150, padL = 22, padR = 10, padT = 10, padB = 18;
-    var innerW = W - padL - padR, innerH = H - padT - padB;
-    var baseY = padT + innerH;
-    var slot = innerW / weeks.length;
-    var barW = Math.max(6, Math.min(22, slot * 0.6));
-
-    var weekTotals = weeks.map(function (wk) {
-      var t = 0;
-      Object.keys(buckets[wk]).forEach(function (s) { t += buckets[wk][s]; });
-      return t;
-    });
-    var maxTotal = Math.max(1, Math.max.apply(null, weekTotals));
-    function yAt(v) { return padT + innerH - (v / maxTotal) * innerH; }
-
-    var barsHtml = weeks.map(function (wk, wi) {
-      var x = padL + wi * slot + (slot - barW) / 2;
-      var segs = seriesNames.map(function (name) {
-        var count = 0;
-        Object.keys(buckets[wk]).forEach(function (site) { if (seriesFor(site) === name) count += buckets[wk][site]; });
-        return { name: name, count: count };
-      }).filter(function (s) { return s.count > 0; });
-
-      var cum = 0;
-      return segs.map(function (s, si) {
-        var y0 = yAt(cum);
-        cum += s.count;
-        var y1 = yAt(cum);
-        var isTop = si === segs.length - 1;
-        var fullH = y0 - y1;
-        var drawH = Math.max(0, fullH - (isTop ? 0 : 2));
-        var drawY = y0 - drawH;
-        var rx = isTop ? 4 : 0;
-        var label = s.name + ": " + opts.unitLabel(s.count) + ", week of " + weekLabelOf(wk);
-        return '<rect x="' + x + '" y="' + drawY + '" width="' + barW + '" height="' + drawH + '" rx="' + rx + '" ry="' + rx +
-          '" fill="' + colorFor(s.name) + '" tabindex="0" role="img" aria-label="' + escapeHtml(label) + '"><title>' + escapeHtml(label) + "</title></rect>";
+    var rowsHtml = sites.map(function (site) {
+      var values = weeks.map(function (wk) { return (buckets[wk] && buckets[wk][site]) || 0; });
+      var maxV = Math.max(1, Math.max.apply(null, values));
+      var bars = values.map(function (v, i) {
+        if (v === 0) return "";
+        var x = i * slot + (slot - barW) / 2;
+        var h = Math.max(2, (v / maxV) * (H - 6));
+        var y = H - h;
+        var label = site + " — week of " + weekLabelOf(weeks[i]) + ": " + opts.unitLabel(v);
+        return '<rect x="' + x + '" y="' + y + '" width="' + barW + '" height="' + h + '" rx="3" ry="3" fill="' + opts.color +
+          '" tabindex="0" role="img" aria-label="' + escapeHtml(label) + '"><title>' + escapeHtml(label) + "</title></rect>";
       }).join("");
+      return '<div class="mini-chart-row">' +
+        '<div class="mini-chart-head"><span class="mini-chart-site">' + escapeHtml(site) + '</span><span class="mini-chart-total">' + opts.unitLabel(siteTotal[site]) + "</span></div>" +
+        '<svg viewBox="0 0 ' + W + " " + H + '" class="mini-chart-svg" role="img" aria-label="' + escapeHtml(site + " weekly trend") + '">' +
+          '<line x1="0" y1="' + H + '" x2="' + W + '" y2="' + H + '" class="trend-axis"/>' +
+          bars +
+        "</svg>" +
+      "</div>";
     }).join("");
 
-    var legendHtml = '<div class="chart-legend">' + seriesNames.map(function (name) {
-      return '<div class="chart-legend-item"><span class="chart-legend-swatch" style="background:' + colorFor(name) + ';"></span>' + escapeHtml(name) + "</div>";
-    }).join("") + "</div>";
-
     return '<div class="summary-block"><h3>' + opts.title + '</h3>' +
-      '<svg viewBox="0 0 ' + W + " " + H + '" class="trend-svg" role="group" aria-label="' + escapeHtml(opts.title) + ", " + weeks.length + ' weeks, by site">' +
-        '<line x1="' + padL + '" y1="' + baseY + '" x2="' + (padL + innerW) + '" y2="' + baseY + '" class="trend-axis"/>' +
-        '<line x1="' + padL + '" y1="' + padT + '" x2="' + (padL + innerW) + '" y2="' + padT + '" class="trend-grid"/>' +
-        '<text x="0" y="' + (baseY + 3) + '" class="trend-tick">0</text>' +
-        '<text x="0" y="' + (padT + 3) + '" class="trend-tick">' + maxTotal + "</text>" +
-        barsHtml +
-      "</svg>" +
-      legendHtml +
+      '<div class="mini-chart-list">' + rowsHtml + "</div>" +
       '<div class="trend-caption">Week of ' + weekLabelOf(weeks[0]) + " – " + weekLabelOf(weeks[weeks.length - 1]) + "</div>" +
     "</div>";
   }
@@ -1176,15 +1132,17 @@
         '<div class="stat good"><div class="num">' + (swaRate === null ? "—" : swaRate + "%") + '</div><div class="lbl">Stop-work rate</div></div>' +
       "</div>";
 
-    var trendHtml = renderStackedWeeklyChart(subs, {
+    var trendHtml = renderSmallMultiples(subs, {
       title: "At-risk observations, by week",
       valueOf: function (r) { return r.atRiskTotal || 0; },
-      unitLabel: function (v) { return v + (v === 1 ? " at-risk observation" : " at-risk observations"); }
+      unitLabel: function (v) { return v + (v === 1 ? " at-risk observation" : " at-risk observations"); },
+      color: "var(--risk)"
     });
-    var walksBySiteHtml = renderStackedWeeklyChart(subs, {
+    var walksBySiteHtml = renderSmallMultiples(subs, {
       title: "Completed walks, by week",
       valueOf: function () { return 1; },
-      unitLabel: function (v) { return v + (v === 1 ? " walk" : " walks"); }
+      unitLabel: function (v) { return v + (v === 1 ? " walk" : " walks"); },
+      color: "var(--accent)"
     });
 
     var maxFlagged = Math.max(1, subs.length);
