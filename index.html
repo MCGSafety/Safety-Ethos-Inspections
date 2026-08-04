@@ -1126,7 +1126,9 @@
       sumLast += lastV || 0;
       sumMonth += monthV;
       sumPrevMonth += prevMonthV;
-      return "<tr><td>" + escapeHtml(site) + "</td><td>" + thisV + "</td><td>" + (lastV === null ? "—" : lastV) + "</td><td>" + monthV + "</td><td>" + prevMonthV + "</td></tr>";
+      var thisVCell = thisV;
+      if (opts.siteWeeklyGoal) thisVCell = '<span class="' + (thisV >= opts.siteWeeklyGoal ? "v-good" : "v-bad") + '">' + thisV + "</span>";
+      return "<tr><td>" + escapeHtml(site) + "</td><td>" + thisVCell + "</td><td>" + (lastV === null ? "—" : lastV) + "</td><td>" + monthV + "</td><td>" + prevMonthV + "</td></tr>";
     }).join("");
     var sumThisCell = sumThis;
     if (opts.weeklyGoal) sumThisCell = '<span class="' + (sumThis >= opts.weeklyGoal ? "v-good" : "v-bad") + '">' + sumThis + "</span>";
@@ -1181,7 +1183,8 @@
     var walksBySiteHtml = renderSiteWeekTable(subs, {
       title: "Completed walks, by week",
       valueOf: function () { return 1; },
-      weeklyGoal: 15
+      weeklyGoal: 15,
+      siteWeeklyGoal: 5
     });
 
     var maxFlagged = Math.max(1, subs.length);
