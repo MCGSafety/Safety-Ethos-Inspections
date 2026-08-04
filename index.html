@@ -1127,12 +1127,20 @@
       sumMonth += monthV;
       sumPrevMonth += prevMonthV;
       var thisVCell = thisV;
-      if (opts.siteWeeklyGoal) thisVCell = '<span class="' + (thisV >= opts.siteWeeklyGoal ? "v-good" : "v-bad") + '">' + thisV + "</span>";
-      return "<tr><td>" + escapeHtml(site) + "</td><td>" + thisVCell + "</td><td>" + (lastV === null ? "—" : lastV) + "</td><td>" + monthV + "</td><td>" + prevMonthV + "</td></tr>";
+      var lastVCell = lastV === null ? "—" : lastV;
+      if (opts.siteWeeklyGoal) {
+        thisVCell = '<span class="' + (thisV >= opts.siteWeeklyGoal ? "v-good" : "v-bad") + '">' + thisV + "</span>";
+        if (lastV !== null) lastVCell = '<span class="' + (lastV >= opts.siteWeeklyGoal ? "v-good" : "v-bad") + '">' + lastV + "</span>";
+      }
+      return "<tr><td>" + escapeHtml(site) + "</td><td>" + thisVCell + "</td><td>" + lastVCell + "</td><td>" + monthV + "</td><td>" + prevMonthV + "</td></tr>";
     }).join("");
     var sumThisCell = sumThis;
-    if (opts.weeklyGoal) sumThisCell = '<span class="' + (sumThis >= opts.weeklyGoal ? "v-good" : "v-bad") + '">' + sumThis + "</span>";
-    var totalRowHtml = "<tr class=\"data-table-total\"><td>All sites</td><td>" + sumThisCell + "</td><td>" + (lastWeek === null ? "—" : sumLast) + "</td><td>" + sumMonth + "</td><td>" + sumPrevMonth + "</td></tr>";
+    var sumLastCell = lastWeek === null ? "—" : sumLast;
+    if (opts.weeklyGoal) {
+      sumThisCell = '<span class="' + (sumThis >= opts.weeklyGoal ? "v-good" : "v-bad") + '">' + sumThis + "</span>";
+      if (lastWeek !== null) sumLastCell = '<span class="' + (sumLast >= opts.weeklyGoal ? "v-good" : "v-bad") + '">' + sumLast + "</span>";
+    }
+    var totalRowHtml = "<tr class=\"data-table-total\"><td>All sites</td><td>" + sumThisCell + "</td><td>" + sumLastCell + "</td><td>" + sumMonth + "</td><td>" + sumPrevMonth + "</td></tr>";
 
     return '<div class="summary-block"><h3>' + opts.title + '</h3>' +
       '<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Site</th><th>This wk</th><th>Last wk</th><th>' + monthLabelOf(monthKey) + '</th><th>' + monthLabelOf(prevMonthKey) + '</th></tr></thead><tbody>' + rowsHtml + totalRowHtml + "</tbody></table></div>" +
