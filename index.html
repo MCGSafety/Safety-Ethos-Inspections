@@ -1132,7 +1132,12 @@
         thisVCell = '<span class="' + (thisV >= opts.siteWeeklyGoal ? "v-good" : "v-bad") + '">' + thisV + "</span>";
         if (lastV !== null) lastVCell = '<span class="' + (lastV >= opts.siteWeeklyGoal ? "v-good" : "v-bad") + '">' + lastV + "</span>";
       }
-      return "<tr><td>" + escapeHtml(site) + "</td><td>" + thisVCell + "</td><td>" + lastVCell + "</td><td>" + monthV + "</td><td>" + prevMonthV + "</td></tr>";
+      var monthVCell = monthV, prevMonthVCell = prevMonthV;
+      if (opts.siteMonthGoal) {
+        monthVCell = '<span class="' + (monthV >= opts.siteMonthGoal ? "v-good" : "v-bad") + '">' + monthV + "</span>";
+        prevMonthVCell = '<span class="' + (prevMonthV >= opts.siteMonthGoal ? "v-good" : "v-bad") + '">' + prevMonthV + "</span>";
+      }
+      return "<tr><td>" + escapeHtml(site) + "</td><td>" + thisVCell + "</td><td>" + lastVCell + "</td><td>" + monthVCell + "</td><td>" + prevMonthVCell + "</td></tr>";
     }).join("");
     var sumThisCell = sumThis;
     var sumLastCell = lastWeek === null ? "—" : sumLast;
@@ -1198,7 +1203,8 @@
       valueOf: function () { return 1; },
       weeklyGoal: 15,
       siteWeeklyGoal: 5,
-      monthGoal: 20
+      monthGoal: 20,
+      siteMonthGoal: 15
     });
 
     var maxFlagged = Math.max(1, subs.length);
