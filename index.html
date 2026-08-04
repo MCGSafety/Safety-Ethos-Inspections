@@ -1309,14 +1309,18 @@
       document.getElementById("dashboard-site-filter").addEventListener("change", function (e) { dashboardSiteFilter = e.target.value; paintDashboard(allSubs); });
       return;
     }
-    var totalObs = subs.reduce(function (s, r) { return s + r.atRiskTotal; }, 0);
-    var totalSwaEligible = subs.reduce(function (s, r) { return s + r.observationsTotal; }, 0);
-    var totalSwaUsed = subs.reduce(function (s, r) { return s + r.swaUsedCount; }, 0);
+    var currentMonthKey = monthKeyOf(todayISO());
+    var monthSubs = subs.filter(function (r) { return r.date && monthKeyOf(r.date) === currentMonthKey; });
+
+    var totalObs = monthSubs.reduce(function (s, r) { return s + r.atRiskTotal; }, 0);
+    var totalSwaEligible = monthSubs.reduce(function (s, r) { return s + r.observationsTotal; }, 0);
+    var totalSwaUsed = monthSubs.reduce(function (s, r) { return s + r.swaUsedCount; }, 0);
     var swaRate = totalSwaEligible > 0 ? Math.round((totalSwaUsed / totalSwaEligible) * 100) : null;
 
     var statsHtml =
+      '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-dim);margin-bottom:8px;">' + monthLabelOf(currentMonthKey) + '</div>' +
       '<div class="stat-row">' +
-        '<div class="stat"><div class="num">' + subs.length + '</div><div class="lbl">Walks logged</div></div>' +
+        '<div class="stat"><div class="num">' + monthSubs.length + '</div><div class="lbl">Walks logged</div></div>' +
         '<div class="stat risk"><div class="num">' + totalObs + '</div><div class="lbl">At-risk observations</div></div>' +
         '<div class="stat good"><div class="num">' + (swaRate === null ? "—" : swaRate + "%") + '</div><div class="lbl">Stop-work rate</div></div>' +
       "</div>";
@@ -1336,8 +1340,6 @@
       siteOrder: trendOpts.resultOrder
     });
 
-    var currentMonthKey = monthKeyOf(todayISO());
-    var monthSubs = subs.filter(function (r) { return r.date && monthKeyOf(r.date) === currentMonthKey; });
     var maxFlagged = Math.max(1, monthSubs.length);
     var barsHtml = '<div class="summary-block"><h3>How often each category is flagged — ' + monthLabelOf(currentMonthKey) + '</h3>' +
       (monthSubs.length === 0 ? '<div class="empty-note" style="padding:14px 0;">No walks logged this month yet.</div>' :
