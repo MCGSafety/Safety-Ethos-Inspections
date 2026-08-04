@@ -1336,17 +1336,20 @@
       siteOrder: trendOpts.resultOrder
     });
 
-    var maxFlagged = Math.max(1, subs.length);
-    var barsHtml = '<div class="summary-block"><h3>How often each category is flagged</h3>' +
+    var currentMonthKey = monthKeyOf(todayISO());
+    var monthSubs = subs.filter(function (r) { return r.date && monthKeyOf(r.date) === currentMonthKey; });
+    var maxFlagged = Math.max(1, monthSubs.length);
+    var barsHtml = '<div class="summary-block"><h3>How often each category is flagged — ' + monthLabelOf(currentMonthKey) + '</h3>' +
+      (monthSubs.length === 0 ? '<div class="empty-note" style="padding:14px 0;">No walks logged this month yet.</div>' :
       CATEGORIES.map(function (c) {
-        var flaggedCount = subs.filter(function (r) { return r.categoryFlags && r.categoryFlags[c.id]; }).length;
+        var flaggedCount = monthSubs.filter(function (r) { return r.categoryFlags && r.categoryFlags[c.id]; }).length;
         var pct = Math.round((flaggedCount / maxFlagged) * 100);
         return '<div class="freq-row">' +
           '<div class="freq-label">' + c.label + '</div>' +
           '<div class="freq-track"><div class="freq-fill" style="width:' + pct + '%"></div></div>' +
-          '<div class="freq-count">' + flaggedCount + '/' + subs.length + '</div>' +
+          '<div class="freq-count">' + flaggedCount + '/' + monthSubs.length + '</div>' +
         "</div>";
-      }).join("") + "</div>";
+      }).join("")) + "</div>";
 
     var recent = subs.slice().sort(function (a, b) {
       return (b.submittedAt || "").localeCompare(a.submittedAt || "");
