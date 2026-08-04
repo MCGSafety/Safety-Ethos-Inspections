@@ -1360,9 +1360,14 @@
   function handleExport() {
     var btn = document.getElementById("export-btn");
     var subs = dashboardCache ? mergeSubmissions(dashboardCache, state.submissions.filter(function (r) { return !r.synced; })) : state.submissions;
-    var rows = [["Site", "Date", "Area", "Inspector", "Accompanied By", "Categories Flagged", "At-Risk Observations", "SWA Used", "Observations Logged", "Notes"]];
+    var rows = [["Site", "Date", "Area", "Inspector", "Accompanied By", "Categories Flagged", "At-Risk Observations", "SWA Used", "Observations Logged", "Observation Notes", "Notes"]];
     subs.forEach(function (r) {
-      rows.push([r.site, r.date, r.area, r.inspector, r.accompanied, r.categoriesFlagged, r.atRiskTotal, r.swaUsedCount, r.observationsTotal, (r.notes || "").replace(/\n/g, " ")]);
+      var d = getWalkDetail(r);
+      var obsNotes = CATEGORIES.map(function (c) {
+        var details = d.categoryDetails && d.categoryDetails[c.id];
+        return details ? c.label + " — " + details.replace(/\n/g, " ") : "";
+      }).filter(function (x) { return x; }).join(" | ");
+      rows.push([r.site, r.date, r.area, r.inspector, r.accompanied, r.categoriesFlagged, r.atRiskTotal, r.swaUsedCount, r.observationsTotal, obsNotes, (r.notes || "").replace(/\n/g, " ")]);
     });
     var csv = rows.map(function (row) {
       return row.map(function (cell) {
