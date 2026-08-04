@@ -277,6 +277,8 @@
   .data-table td { text-align: right; padding: 8px 0 8px 10px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; color: var(--ink); }
   .data-table th:first-child, .data-table td:first-child { text-align: left; padding-left: 0; font-weight: 700; color: var(--ink); }
   .data-table tr:last-child td { border-bottom: none; }
+  .data-table-total td { font-weight: 700; color: var(--ink); border-top: 1px solid var(--border); padding-top: 9px; }
+  .data-table-total td:first-child { color: var(--ink-dim); font-weight: 700; }
   .stat-row { display: flex; gap: 10px; margin-bottom: 16px; }
   .stat { flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; }
   .stat .num { font-size: 24px; font-weight: 800; font-family: "Bahnschrift SemiBold","Bahnschrift",sans-serif; }
@@ -1100,14 +1102,20 @@
 
     var sites = Object.keys(siteNames).sort(function (a, b) { return (monthTotal[b] || 0) - (monthTotal[a] || 0); });
 
+    var sumThis = 0, sumLast = 0, sumMonth = 0;
     var rowsHtml = sites.map(function (site) {
       var thisV = (weekBuckets[thisWeek] && weekBuckets[thisWeek][site]) || 0;
       var lastV = lastWeek ? ((weekBuckets[lastWeek] && weekBuckets[lastWeek][site]) || 0) : null;
-      return "<tr><td>" + escapeHtml(site) + "</td><td>" + thisV + "</td><td>" + (lastV === null ? "—" : lastV) + "</td><td>" + (monthTotal[site] || 0) + "</td></tr>";
+      var monthV = monthTotal[site] || 0;
+      sumThis += thisV;
+      sumLast += lastV || 0;
+      sumMonth += monthV;
+      return "<tr><td>" + escapeHtml(site) + "</td><td>" + thisV + "</td><td>" + (lastV === null ? "—" : lastV) + "</td><td>" + monthV + "</td></tr>";
     }).join("");
+    var totalRowHtml = "<tr class=\"data-table-total\"><td>All sites</td><td>" + sumThis + "</td><td>" + (lastWeek === null ? "—" : sumLast) + "</td><td>" + sumMonth + "</td></tr>";
 
     return '<div class="summary-block"><h3>' + opts.title + '</h3>' +
-      '<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Site</th><th>This wk</th><th>Last wk</th><th>' + monthLabelOf(monthKey) + '</th></tr></thead><tbody>' + rowsHtml + "</tbody></table></div>" +
+      '<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Site</th><th>This wk</th><th>Last wk</th><th>' + monthLabelOf(monthKey) + '</th></tr></thead><tbody>' + rowsHtml + totalRowHtml + "</tbody></table></div>" +
       '<div class="trend-caption">Week of ' + weekLabelOf(thisWeek) + "</div>" +
     "</div>";
   }
