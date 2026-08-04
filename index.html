@@ -1063,18 +1063,25 @@
   }
   function weekLabelOf(k) { return new Date(k + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
 
+  function monthKeyOf(dateStr) {
+    var d = new Date(dateStr + "T00:00:00");
+    if (isNaN(d.getTime())) return null;
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  }
+  function monthLabelOf(k) { return new Date(k + "-01T00:00:00").toLocaleDateString(undefined, { month: "long", year: "numeric" }); }
+
   function renderSiteWeekTable(subs, opts) {
-    var buckets = {}, siteTotal = {};
+    var weekBuckets = {}, monthTotal = {}, siteNames = {};
     subs.forEach(function (r) {
-      var key = r.date ? weekKeyOf(r.date) : null;
-      if (!key) return;
+      var wk = r.date ? weekKeyOf(r.date) : null;
+      if (!wk) return;
       var site = r.site || "Unnamed site";
       var v = opts.valueOf(r);
-      if (!buckets[key]) buckets[key] = {};
-      buckets[key][site] = (buckets[key][site] || 0) + v;
-      siteTotal[site] = (siteTotal[site] || 0) + v;
+      if (!weekBuckets[wk]) weekBuckets[wk] = {};
+      weekBuckets[wk][site] = (weekBuckets[wk][site] || 0) + v;
+      siteNames[site] = true;
     });
-    var weeks = Object.keys(buckets).sort();
+    var weeks = Object.keys(weekBuckets).sort();
     if (weeks.length === 0) {
       return '<div class="summary-block"><h3>' + opts.title + '</h3>' +
         '<div class="empty-note" style="padding:18px 8px;">No walks logged yet.</div></div>';
@@ -1082,16 +1089,25 @@
 
     var thisWeek = weeks[weeks.length - 1];
     var lastWeek = weeks.length > 1 ? weeks[weeks.length - 2] : null;
-    var sites = Object.keys(siteTotal).sort(function (a, b) { return siteTotal[b] - siteTotal[a]; });
+    var monthKey = monthKeyOf(thisWeek);
+
+    subs.forEach(function (r) {
+      if (!r.date || monthKeyOf(r.date) !== monthKey) return;
+      var site = r.site || "Unnamed site";
+      monthTotal[site] = (monthTotal[site] || 0) + opts.valueOf(r);
+      siteNames[site] = true;
+    });
+
+    var sites = Object.keys(siteNames).sort(function (a, b) { return (monthTotal[b] || 0) - (monthTotal[a] || 0); });
 
     var rowsHtml = sites.map(function (site) {
-      var thisV = (buckets[thisWeek] && buckets[thisWeek][site]) || 0;
-      var lastV = lastWeek ? ((buckets[lastWeek] && buckets[lastWeek][site]) || 0) : null;
-      return "<tr><td>" + escapeHtml(site) + "</td><td>" + thisV + "</td><td>" + (lastV === null ? "—" : lastV) + "</td><td>" + siteTotal[site] + "</td></tr>";
+      var thisV = (weekBuckets[thisWeek] && weekBuckets[thisWeek][site]) || 0;
+      var lastV = lastWeek ? ((weekBuckets[lastWeek] && weekBuckets[lastWeek][site]) || 0) : null;
+      return "<tr><td>" + escapeHtml(site) + "</td><td>" + thisV + "</td><td>" + (lastV === null ? "—" : lastV) + "</td><td>" + (monthTotal[site] || 0) + "</td></tr>";
     }).join("");
 
     return '<div class="summary-block"><h3>' + opts.title + '</h3>' +
-      '<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Site</th><th>This wk</th><th>Last wk</th><th>Total</th></tr></thead><tbody>' + rowsHtml + "</tbody></table></div>" +
+      '<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Site</th><th>This wk</th><th>Last wk</th><th>' + monthLabelOf(monthKey) + '</th></tr></thead><tbody>' + rowsHtml + "</tbody></table></div>" +
       '<div class="trend-caption">Week of ' + weekLabelOf(thisWeek) + "</div>" +
     "</div>";
   }
