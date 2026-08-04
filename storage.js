@@ -84,7 +84,12 @@ function categoryDetailsText(awareness, action) {
   }
   if (action.qualified === "yes") parts.push("Actioned directly by inspector.");
   if (action.qualified === "no") parts.push("Assigned to: " + (action.accountable || "unnamed"));
-  if (action.correctiveAction) parts.push("Corrective action: " + action.correctiveAction);
+  var actions = (action.correctiveActions || []).filter(function (a) { return a && a.trim(); });
+  if (actions.length) {
+    parts.push(actions.length > 1
+      ? "Corrective actions:\n" + actions.map(function (a, i) { return (i + 1) + ". " + a; }).join("\n")
+      : "Corrective action: " + actions[0]);
+  }
   return parts.join("\n");
 }
 

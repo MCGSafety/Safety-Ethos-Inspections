@@ -772,7 +772,7 @@
     var awareness = {}, action = {};
     CATEGORIES.forEach(function (c) {
       awareness[c.id] = { status: null, tally: 0, notes: [] };
-      action[c.id] = { qualified: null, accountable: "", correctiveAction: "" };
+      action[c.id] = { qualified: null, accountable: "", correctiveActions: [] };
     });
     return {
       site: "", date: todayISO(), area: "", inspector: "", accompanied: "",
@@ -798,6 +798,10 @@
         var aw = merged.awareness[id];
         if (!Array.isArray(aw.notes)) aw.notes = aw.notes ? [aw.notes] : [];
         aw.tally = aw.notes.length;
+      });
+      Object.keys(merged.action).forEach(function (id) {
+        var ac = merged.action[id];
+        if (!Array.isArray(ac.correctiveActions)) ac.correctiveActions = ac.correctiveAction ? [ac.correctiveAction] : [];
       });
       return merged;
     } catch (e) { return defaultState(); }
@@ -895,6 +899,21 @@
     wrap.innerHTML = flagged.map(function (c) {
       var s = state.action[c.id];
       var aware = state.awareness[c.id];
+      while (s.correctiveActions.length < aware.tally) s.correctiveActions.push("");
+      if (s.correctiveActions.length > aware.tally) s.correctiveActions.length = aware.tally;
+      var multi = aware.tally > 1;
+      var correctiveHtml = multi ? aware.notes.map(function (n, i) {
+        return '<div class="field" style="margin-top:12px;margin-bottom:0;">' +
+          '<label>Corrective action — Observation #' + (i + 1) + '</label>' +
+          (n ? '<div style="font-size:12px;color:var(--ink-dim);margin:-2px 0 6px;">For: "' + escapeHtml(n) + '"</div>' : "") +
+          '<textarea data-act="correctiveAction" data-cat="' + c.id + '" data-idx="' + i + '" placeholder="What was done to fix it...">' + escapeHtml(s.correctiveActions[i] || "") + "</textarea>" +
+        "</div>";
+      }).join("") : (
+        '<div class="field" style="margin-top:12px;margin-bottom:0;">' +
+          '<label>Corrective action taken</label>' +
+          '<textarea data-act="correctiveAction" data-cat="' + c.id + '" data-idx="0" placeholder="What was done to fix it...">' + escapeHtml(s.correctiveActions[0] || "") + "</textarea>" +
+        "</div>"
+      );
       return '<div class="card">' +
         '<div class="cat-head">' + iconSpan(c.id) +
           '<div class="cat-title"><h3>' + c.label + '</h3><p>' + aware.tally + ' at-risk observation' + (aware.tally === 1 ? "" : "s") + ' recorded</p></div>' +
@@ -910,10 +929,7 @@
             '<input type="text" data-act="accountable" data-cat="' + c.id + '" value="' + escapeHtml(s.accountable) + '" placeholder="Name of responsible person" />' +
           "</div>" +
         "</div>" +
-        '<div class="field" style="margin-top:12px;margin-bottom:0;">' +
-          '<label>Corrective action taken</label>' +
-          '<textarea data-act="correctiveAction" data-cat="' + c.id + '" placeholder="What was done to fix it...">' + escapeHtml(s.correctiveAction) + "</textarea>" +
-        "</div>" +
+        correctiveHtml +
       "</div>";
     }).join("");
   }
@@ -933,8 +949,12 @@
     var t = e.target;
     var act = t.getAttribute("data-act");
     var cat = t.getAttribute("data-cat");
-    if (act === "accountable" || act === "correctiveAction") {
-      state.action[cat][act] = t.value;
+    if (act === "accountable") {
+      state.action[cat].accountable = t.value;
+      scheduleSave();
+    }
+    if (act === "correctiveAction") {
+      state.action[cat].correctiveActions[Number(t.getAttribute("data-idx"))] = t.value;
       scheduleSave();
     }
   });
@@ -1454,7 +1474,9 @@
     if (flagged.length === 0) lines.push("- No at-risk categories; no action required.");
     flagged.forEach(function (c) {
       var s = state.action[c.id];
-      lines.push("- " + c.label + ": qualified=" + (s.qualified || "pending") + (s.accountable ? ", accountable=" + s.accountable : "") + (s.correctiveAction ? " | Action: " + s.correctiveAction : ""));
+      var actionsList = (s.correctiveActions || []).filter(function (a) { return a && a.trim(); });
+      var actionsText = actionsList.length ? " | Action: " + actionsList.map(function (a, i) { return actionsList.length > 1 ? (i + 1) + ". " + a : a; }).join("; ") : "";
+      lines.push("- " + c.label + ": qualified=" + (s.qualified || "pending") + (s.accountable ? ", accountable=" + s.accountable : "") + actionsText);
     });
     lines.push("");
     lines.push("STEP 3 — ACCOUNTABILITY");
