@@ -1111,13 +1111,28 @@
     "</div>";
   }
 
-  function paintDashboard(subs) {
+  var dashboardSiteFilter = "";
+  function paintDashboard(allSubs) {
     var wrap = document.getElementById("dashboard-body");
-    if (subs.length === 0) {
+    if (allSubs.length === 0) {
       wrap.innerHTML =
         '<div class="empty-note"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M4 20V10M11 20V4M18 20v-7"/></svg>' +
         '<div>No walks submitted yet.<br>Complete a walk and tap <strong>Submit walk &amp; start new</strong> on the Summary tab to see trends here.</div></div>' +
         airtableFooter();
+      return;
+    }
+    var sites = Array.from(new Set(allSubs.map(function (r) { return r.site || "Unnamed site"; }))).sort();
+    if (dashboardSiteFilter && sites.indexOf(dashboardSiteFilter) === -1) dashboardSiteFilter = "";
+    var subs = dashboardSiteFilter ? allSubs.filter(function (r) { return (r.site || "Unnamed site") === dashboardSiteFilter; }) : allSubs;
+
+    var filterHtml = '<div class="field" style="margin-bottom:16px;"><label for="dashboard-site-filter">Site</label><select id="dashboard-site-filter"><option value=""' +
+      (dashboardSiteFilter ? "" : " selected") + '>All sites</option>' +
+      sites.map(function (s) { return '<option value="' + escapeHtml(s) + '"' + (s === dashboardSiteFilter ? " selected" : "") + ">" + escapeHtml(s) + "</option>"; }).join("") +
+      "</select></div>";
+
+    if (subs.length === 0) {
+      wrap.innerHTML = filterHtml + '<div class="empty-note">No walks logged for this site yet.</div>' + airtableFooter();
+      document.getElementById("dashboard-site-filter").addEventListener("change", function (e) { dashboardSiteFilter = e.target.value; paintDashboard(allSubs); });
       return;
     }
     var totalObs = subs.reduce(function (s, r) { return s + r.atRiskTotal; }, 0);
@@ -1168,7 +1183,8 @@
         return '<div class="summary-row recent-row" data-idx="' + idx + '"><span class="k">' + label + '</span><span class="v">' + chip + syncChip + "</span></div>";
       }).join("") + '<button class="add-btn" id="see-all-history-btn" style="margin-top:10px;">See all inspections</button></div>';
 
-    wrap.innerHTML = statsHtml + trendHtml + walksBySiteHtml + barsHtml + recentHtml + exportRow() + airtableFooter();
+    wrap.innerHTML = filterHtml + statsHtml + trendHtml + walksBySiteHtml + barsHtml + recentHtml + exportRow() + airtableFooter();
+    document.getElementById("dashboard-site-filter").addEventListener("change", function (e) { dashboardSiteFilter = e.target.value; paintDashboard(allSubs); });
     wrap.querySelectorAll(".recent-row").forEach(function (rowEl) {
       rowEl.addEventListener("click", function () { openWalkSheet(recent[Number(rowEl.getAttribute("data-idx"))]); });
     });
