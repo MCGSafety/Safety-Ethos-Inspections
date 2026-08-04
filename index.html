@@ -1182,7 +1182,14 @@
       }
     });
 
-    var sites = Object.keys(siteNames).sort(function (a, b) { return (monthTotal[b] || 0) - (monthTotal[a] || 0); });
+    var sites;
+    if (opts.siteOrder) {
+      sites = opts.siteOrder.filter(function (s) { return siteNames[s]; });
+      Object.keys(siteNames).forEach(function (s) { if (sites.indexOf(s) === -1) sites.push(s); });
+    } else {
+      sites = Object.keys(siteNames).sort(function (a, b) { return (monthTotal[b] || 0) - (monthTotal[a] || 0); });
+    }
+    opts.resultOrder = sites;
 
     var sumThis = 0, sumLast = 0, sumMonth = 0, sumPrevMonth = 0;
     var rowsHtml = sites.map(function (site) {
@@ -1262,17 +1269,19 @@
         '<div class="stat good"><div class="num">' + (swaRate === null ? "—" : swaRate + "%") + '</div><div class="lbl">Stop-work rate</div></div>' +
       "</div>";
 
-    var trendHtml = renderSiteWeekTable(subs, {
+    var trendOpts = {
       title: "At-risk observations, by week",
       valueOf: function (r) { return r.atRiskTotal || 0; }
-    });
+    };
+    var trendHtml = renderSiteWeekTable(subs, trendOpts);
     var walksBySiteHtml = renderSiteWeekTable(subs, {
       title: "Completed walks, by week",
       valueOf: function () { return 1; },
       weeklyGoal: 15,
       siteWeeklyGoal: 5,
       monthGoal: 60,
-      siteMonthGoal: 15
+      siteMonthGoal: 15,
+      siteOrder: trendOpts.resultOrder
     });
 
     var maxFlagged = Math.max(1, subs.length);
