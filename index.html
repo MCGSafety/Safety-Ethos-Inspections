@@ -1568,6 +1568,10 @@
   function hydrateFields() {
     document.getElementById("f-date").value = state.date;
     document.getElementById("f-notes").value = state.notes;
+    LOOKUP_FIELDS.forEach(function (cfg) {
+      var el = document.getElementById(cfg.fieldId);
+      if (el) el.value = state[cfg.stateKey] || "";
+    });
   }
   document.getElementById("f-date").addEventListener("input", function (e) { state.date = e.target.value; scheduleSave(); });
   document.getElementById("f-notes").addEventListener("input", function (e) { state.notes = e.target.value; scheduleSave(); });
