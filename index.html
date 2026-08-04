@@ -1140,7 +1140,12 @@
       sumThisCell = '<span class="' + (sumThis >= opts.weeklyGoal ? "v-good" : "v-bad") + '">' + sumThis + "</span>";
       if (lastWeek !== null) sumLastCell = '<span class="' + (sumLast >= opts.weeklyGoal ? "v-good" : "v-bad") + '">' + sumLast + "</span>";
     }
-    var totalRowHtml = "<tr class=\"data-table-total\"><td>All sites</td><td>" + sumThisCell + "</td><td>" + sumLastCell + "</td><td>" + sumMonth + "</td><td>" + sumPrevMonth + "</td></tr>";
+    var sumMonthCell = sumMonth, sumPrevMonthCell = sumPrevMonth;
+    if (opts.monthGoal) {
+      sumMonthCell = '<span class="' + (sumMonth >= opts.monthGoal ? "v-good" : "v-bad") + '">' + sumMonth + "</span>";
+      sumPrevMonthCell = '<span class="' + (sumPrevMonth >= opts.monthGoal ? "v-good" : "v-bad") + '">' + sumPrevMonth + "</span>";
+    }
+    var totalRowHtml = "<tr class=\"data-table-total\"><td>All sites</td><td>" + sumThisCell + "</td><td>" + sumLastCell + "</td><td>" + sumMonthCell + "</td><td>" + sumPrevMonthCell + "</td></tr>";
 
     return '<div class="summary-block"><h3>' + opts.title + '</h3>' +
       '<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Site</th><th>This wk</th><th>Last wk</th><th>' + monthLabelOf(monthKey) + '</th><th>' + monthLabelOf(prevMonthKey) + '</th></tr></thead><tbody>' + rowsHtml + totalRowHtml + "</tbody></table></div>" +
@@ -1192,7 +1197,8 @@
       title: "Completed walks, by week",
       valueOf: function () { return 1; },
       weeklyGoal: 15,
-      siteWeeklyGoal: 5
+      siteWeeklyGoal: 5,
+      monthGoal: 20
     });
 
     var maxFlagged = Math.max(1, subs.length);
