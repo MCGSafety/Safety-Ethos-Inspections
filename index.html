@@ -596,8 +596,7 @@
         <textarea id="f-notes" placeholder="Anything else worth recording..."></textarea>
       </div>
       <div class="action-row">
-        <button class="btn-ghost" id="copy-btn">Copy as text</button>
-        <button class="btn-primary" id="print-btn">Print / Save PDF</button>
+        <button class="btn-primary" id="print-btn" style="flex:1 1 100%;">Print / Save PDF</button>
       </div>
       <div class="action-row">
         <button class="btn-primary" id="submit-btn" style="flex:1 1 100%; background:var(--good); border-color:var(--good) !important; color:#fff;">Submit walk &amp; start new</button>
@@ -1460,53 +1459,8 @@
     function row(k, v) { return '<div class="summary-row"><span class="k">' + k + '</span><span class="v">' + escapeHtml(String(v)) + "</span></div>"; }
   }
 
-  function buildTextSummary() {
-    var lines = [];
-    lines.push("SAFETY ETHOS IN ACTION — FIELD WALK");
-    lines.push("Site: " + (state.site || "—") + " | Date: " + (state.date || "—") + " | Area: " + (state.area || "—"));
-    lines.push("Inspector: " + (state.inspector || "—") + " | Accompanied by: " + (state.accompanied || "—"));
-    lines.push("");
-    lines.push("STEP 1 — AWARENESS");
-    CATEGORIES.forEach(function (c) {
-      var s = state.awareness[c.id];
-      var v = s.status === null ? "Pending" : s.status === "yes" ? "Yes (clear)" : "No — " + s.tally + " at-risk observation(s)";
-      var notesList = (s.notes || []).filter(function (n) { return n && n.trim(); });
-      lines.push("- " + c.label + ": " + v + (notesList.length ? " | " + notesList.map(function (n, i) { return (i + 1) + ". " + n; }).join("; ") : ""));
-    });
-    lines.push("");
-    lines.push("STEP 2 — ACTION");
-    var flagged = CATEGORIES.filter(function (c) { return state.awareness[c.id].status === "no"; });
-    if (flagged.length === 0) lines.push("- No at-risk categories; no action required.");
-    flagged.forEach(function (c) {
-      var s = state.action[c.id];
-      var actionsList = (s.correctiveActions || []).filter(function (a) { return a && a.trim(); });
-      var actionsText = actionsList.length ? " | Action: " + actionsList.map(function (a, i) { return actionsList.length > 1 ? (i + 1) + ". " + a : a; }).join("; ") : "";
-      lines.push("- " + c.label + ": qualified=" + (s.qualified || "pending") + (s.accountable ? ", accountable=" + s.accountable : "") + actionsText);
-    });
-    lines.push("");
-    lines.push("STEP 3 — ACCOUNTABILITY");
-    var obs = state.observations.filter(function (o) { return o.behavior || o.swa; });
-    if (obs.length === 0) lines.push("- No observations logged.");
-    obs.forEach(function (o, i) {
-      lines.push("- Observation " + (i + 1) + ": " + (o.behavior || "—") + " | SWA used: " + (o.swa || "pending") + (o.correctiveAction ? " | Action: " + o.correctiveAction : "") + (o.time ? " | Completed: " + o.time : ""));
-    });
-    lines.push("");
-    lines.push("NOTES: " + (state.notes || "—"));
-    return lines.join("\n");
-  }
-
-  document.getElementById("copy-btn").addEventListener("click", function () {
-    var text = buildTextSummary();
-    var btn = document.getElementById("copy-btn");
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(function () {
-        btn.textContent = "Copied ✓";
-        setTimeout(function () { btn.textContent = "Copy as text"; }, 1500);
-      }).catch(function () { fallbackCopy(text, btn); });
-    } else { fallbackCopy(text, btn); }
-  });
   function fallbackCopy(text, btn, revertLabel) {
-    var label = revertLabel || "Copy as text";
+    var label = revertLabel;
     var ta = document.createElement("textarea");
     ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
     document.body.appendChild(ta); ta.select();
