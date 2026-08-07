@@ -76,6 +76,33 @@ var SYNC_CATEGORY_LABELS = {
   environmental: "Environmental",
 };
 
+var SYNC_CATEGORY_PHOTO_FIELDS = {
+  ppe: "PPE Photos",
+  workingConditions: "Working Conditions Photos",
+  bodyPositioning: "Body Positioning Photos",
+  tools: "Tools Photos",
+  environmental: "Environmental Photos",
+};
+
+async function atUploadAttachment(recordId, fieldName, dataUrl, filename) {
+  const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);
+  if (!m) throw new Error("Invalid photo data");
+  const res = await fetch(`https://content.airtable.com/v0/${AIRTABLE_BASE_ID}/${recordId}/${encodeURIComponent(fieldName)}/uploadAttachment`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${airtableToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ contentType: m[1], file: m[2], filename: filename }),
+  });
+  if (!res.ok) {
+    let message = `Airtable upload error ${res.status}`;
+    try { const body = await res.json(); message = (body.error && (body.error.message || body.error.type)) || message; } catch (e) { /* ignore */ }
+    throw new Error(message);
+  }
+  return res.json();
+}
+
 function categoryDetailsText(awareness, action) {
   var parts = [];
   var notes = (awareness.notes || []).filter(function (n) { return n && n.trim(); });
@@ -133,11 +160,14 @@ function fromAirtableRecord(rec, categories) {
   var categoryFlags = {};
   var categoryDetails = {};
   var categoryCounts = {};
+  var categoryPhotos = {};
   categories.forEach(function (c) {
     var label = SYNC_CATEGORY_LABELS[c.id];
     categoryFlags[c.id] = f[label + " Status"] === "At Risk";
     categoryDetails[c.id] = f[label + " Details"] || "";
     categoryCounts[c.id] = f[label + " At-Risk Count"] || 0;
+    var photoField = SYNC_CATEGORY_PHOTO_FIELDS[c.id];
+    categoryPhotos[c.id] = (f[photoField] || []).map(function (att) { return att.url; });
   });
   return {
     id: rec.id,
@@ -150,6 +180,7 @@ function fromAirtableRecord(rec, categories) {
     categoryFlags: categoryFlags,
     categoryDetails: categoryDetails,
     categoryCounts: categoryCounts,
+    categoryPhotos: categoryPhotos,
     categoriesFlagged: f["Categories Flagged"] || 0,
     atRiskTotal: f["At-Risk Observations"] || 0,
     observationsTotal: f["Observations Logged"] || 0,

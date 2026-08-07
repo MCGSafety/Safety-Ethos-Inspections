@@ -770,7 +770,7 @@
   function defaultState() {
     var awareness = {}, action = {};
     CATEGORIES.forEach(function (c) {
-      awareness[c.id] = { status: null, tally: 0, notes: [] };
+      awareness[c.id] = { status: null, tally: 0, notes: [], photos: [] };
       action[c.id] = { qualified: null, accountable: "", correctiveActions: [] };
     });
     return {
@@ -797,6 +797,9 @@
         var aw = merged.awareness[id];
         if (!Array.isArray(aw.notes)) aw.notes = aw.notes ? [aw.notes] : [];
         aw.tally = aw.notes.length;
+        if (!Array.isArray(aw.photos)) aw.photos = [];
+        while (aw.photos.length < aw.notes.length) aw.photos.push(null);
+        if (aw.photos.length > aw.notes.length) aw.photos.length = aw.notes.length;
       });
       Object.keys(merged.action).forEach(function (id) {
         var ac = merged.action[id];
@@ -838,12 +841,22 @@
         '<div class="reveal">' +
           '<label style="font-size:12.5px;font-weight:600;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.04em;">At-risk observations (' + s.notes.length + ')</label>' +
           s.notes.map(function (n, i) {
+            var photo = s.photos[i];
+            var photoHtml = photo ? (
+              '<div class="photo-frame" style="margin-top:8px;max-width:220px;"><img src="' + photo + '" alt="Observation photo" /></div>' +
+              '<button type="button" class="inline-remove" data-act="cat-photo-remove" data-cat="' + c.id + '" data-idx="' + i + '" style="margin-top:4px;">Remove photo</button>'
+            ) : (
+              '<label class="add-btn" style="display:block;text-align:center;margin-top:8px;cursor:pointer;">📷 Add photo' +
+                '<input type="file" accept="image/*" capture="environment" data-act="cat-photo-input" data-cat="' + c.id + '" data-idx="' + i + '" style="display:none;" />' +
+              '</label>'
+            );
             return '<div class="field" style="margin-top:10px;margin-bottom:0;">' +
               '<div style="display:flex;justify-content:space-between;align-items:baseline;">' +
                 '<label style="margin-bottom:4px;">Observation #' + (i + 1) + ' — what did you see?</label>' +
                 '<button type="button" class="inline-remove" data-act="cat-note-remove" data-cat="' + c.id + '" data-idx="' + i + '">Remove</button>' +
               '</div>' +
               '<textarea data-act="cat-note" data-cat="' + c.id + '" data-idx="' + i + '" placeholder="Briefly describe the at-risk behavior...">' + escapeHtml(n) + '</textarea>' +
+              photoHtml +
             '</div>';
           }).join("") +
           (s.notes.length === 0 ? '<div class="empty-note" style="padding:14px 0;">No observations added yet.</div>' : "") +
@@ -870,11 +883,17 @@
     var s = state.awareness[cat];
     if (act === "status") {
       s.status = btn.getAttribute("data-val");
-      if (s.status === "yes") { s.tally = 0; s.notes = []; }
-      if (s.status === "no" && s.notes.length === 0) { s.notes.push(""); s.tally = 1; }
+      if (s.status === "yes") { s.tally = 0; s.notes = []; s.photos = []; }
+      if (s.status === "no" && s.notes.length === 0) { s.notes.push(""); s.photos.push(null); s.tally = 1; }
     }
-    if (act === "cat-note-add") { s.notes.push(""); s.tally = s.notes.length; }
-    if (act === "cat-note-remove") { s.notes.splice(Number(btn.getAttribute("data-idx")), 1); s.tally = s.notes.length; }
+    if (act === "cat-note-add") { s.notes.push(""); s.photos.push(null); s.tally = s.notes.length; }
+    if (act === "cat-note-remove") {
+      var removeIdx = Number(btn.getAttribute("data-idx"));
+      s.notes.splice(removeIdx, 1);
+      s.photos.splice(removeIdx, 1);
+      s.tally = s.notes.length;
+    }
+    if (act === "cat-photo-remove") { s.photos[Number(btn.getAttribute("data-idx"))] = null; }
     renderAwareness();
     renderTabDots();
     scheduleSave();
@@ -886,6 +905,41 @@
       scheduleSave();
     }
   });
+  document.getElementById("awareness-cards").addEventListener("change", function (e) {
+    var t = e.target;
+    if (t.getAttribute("data-act") !== "cat-photo-input") return;
+    var file = t.files && t.files[0];
+    if (!file) return;
+    var cat = t.getAttribute("data-cat");
+    var idx = Number(t.getAttribute("data-idx"));
+    downscaleImage(file, 1280, 0.72).then(function (dataUrl) {
+      state.awareness[cat].photos[idx] = dataUrl;
+      renderAwareness();
+      scheduleSave();
+    }).catch(function (err) {
+      console.warn("Could not process photo:", err.message);
+    });
+  });
+  function downscaleImage(file, maxDim, quality) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onerror = function () { reject(new Error("Could not read file")); };
+      reader.onload = function () {
+        var img = new Image();
+        img.onerror = function () { reject(new Error("Could not decode image")); };
+        img.onload = function () {
+          var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+          var w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+          var canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
 
   /* ---------------- ACTION ---------------- */
   function renderAction() {
@@ -1511,6 +1565,12 @@
     var airtableFields = buildAirtableFields(state, CATEGORIES);
     record.synced = false;
     record._fields = airtableFields;
+    var pendingPhotos = {};
+    CATEGORIES.forEach(function (c) {
+      var photos = (state.awareness[c.id].photos || []).filter(function (p) { return p; });
+      if (photos.length) pendingPhotos[c.id] = photos;
+    });
+    if (Object.keys(pendingPhotos).length) record._pendingPhotos = pendingPhotos;
     state.submissions.push(record);
     var keepSubmissions = state.submissions;
     state = defaultState();
@@ -1539,8 +1599,21 @@
         r.synced = true;
         r.airtableId = rec.id;
         delete r._fields;
+        var photos = r._pendingPhotos;
+        delete r._pendingPhotos;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         renderDashboard();
+        if (photos) {
+          Object.keys(photos).forEach(function (catId) {
+            var fieldName = SYNC_CATEGORY_PHOTO_FIELDS[catId];
+            if (!fieldName) return;
+            photos[catId].forEach(function (dataUrl, i) {
+              atUploadAttachment(rec.id, fieldName, dataUrl, catId + "-observation-" + (i + 1) + ".jpg").catch(function (e) {
+                console.warn("Photo upload failed for " + fieldName + ":", e.message);
+              });
+            });
+          });
+        }
       }).catch(function (e) { console.warn("Retry sync failed:", e.message); });
     });
   }
@@ -1698,7 +1771,14 @@
 
   function getWalkDetail(record) {
     if (record._fields) {
-      return fromAirtableRecord({ id: record.id, createdTime: record.submittedAt, fields: record._fields }, CATEGORIES);
+      var d = fromAirtableRecord({ id: record.id, createdTime: record.submittedAt, fields: record._fields }, CATEGORIES);
+      if (record._pendingPhotos) {
+        d.categoryPhotos = d.categoryPhotos || {};
+        Object.keys(record._pendingPhotos).forEach(function (catId) {
+          d.categoryPhotos[catId] = record._pendingPhotos[catId];
+        });
+      }
+      return d;
     }
     return record;
   }
@@ -1722,8 +1802,13 @@
       var count = d.categoryCounts ? d.categoryCounts[c.id] : 0;
       var chip = flagged ? '<span class="chip risk">At risk' + (count ? " · " + count : "") + '</span>' : '<span class="chip good">Clear</span>';
       var details = d.categoryDetails && d.categoryDetails[c.id];
+      var photos = d.categoryPhotos && d.categoryPhotos[c.id];
+      var photosHtml = (photos && photos.length) ? '<div class="photo-gallery" style="margin:0 0 10px;">' + photos.map(function (url) {
+        return '<figure class="photo-card"><div class="photo-frame"><img src="' + url + '" alt="Observation photo" /></div></figure>';
+      }).join("") + "</div>" : "";
       return '<div class="summary-row"><span class="k">' + c.label + '</span><span class="v">' + chip + "</span></div>" +
-        (details ? '<div style="font-size:12.5px; color:var(--ink-dim); margin:-2px 0 8px; white-space:pre-line;">' + escapeHtml(details) + "</div>" : "");
+        (details ? '<div style="font-size:12.5px; color:var(--ink-dim); margin:-2px 0 8px; white-space:pre-line;">' + escapeHtml(details) + "</div>" : "") +
+        photosHtml;
     }).join("");
 
     var swaHtml = d.stopWorkLog ? '<div class="g-sub" style="margin-top:14px;">Stop Work Log</div><div style="font-size:12.5px; white-space:pre-line;">' + escapeHtml(d.stopWorkLog) + "</div>" : "";
