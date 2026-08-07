@@ -1494,7 +1494,11 @@
       CATEGORIES.map(function (c) {
         var s = state.awareness[c.id];
         var v = s.status === null ? "Pending" : s.status === "yes" ? "Clear" : s.tally + " at risk";
-        return row(c.label, v);
+        var photos = (s.photos || []).filter(function (p) { return p; });
+        var photosHtml = photos.length ? '<div class="photo-gallery" style="margin:0 0 10px;">' + photos.map(function (url) {
+          return '<figure class="photo-card"><div class="photo-frame"><img src="' + url + '" alt="Observation photo" /></div></figure>';
+        }).join("") + "</div>" : "";
+        return row(c.label, v) + photosHtml;
       }).join("") + "</div>";
 
     var actionHtml = '<div class="summary-block"><h3>Step 2 — Action</h3>' +
