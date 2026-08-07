@@ -1596,6 +1596,30 @@
     });
   });
 
+  function uploadPendingPhotos(r, recordId) {
+    var photos = r._pendingPhotos;
+    if (!photos) return;
+    var uploads = [];
+    Object.keys(photos).forEach(function (catId) {
+      var fieldId = SYNC_CATEGORY_PHOTO_FIELD_IDS[catId];
+      if (!fieldId) return;
+      photos[catId].forEach(function (dataUrl, i) {
+        uploads.push(atUploadAttachment(recordId, fieldId, dataUrl, catId + "-observation-" + (i + 1) + ".jpg").catch(function (e) {
+          console.warn("Photo upload failed for " + catId + ":", e.message);
+          return null;
+        }));
+      });
+    });
+    Promise.all(uploads).then(function (results) {
+      if (results.every(function (r2) { return r2 !== null; })) {
+        delete r._pendingPhotos;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } else {
+        console.warn("Some photos for this walk did not sync to Airtable; keeping local copies so they still display.");
+      }
+    });
+  }
+
   function flushPendingSyncs() {
     var pending = state.submissions.filter(function (r) { return !r.synced && r._fields; });
     pending.forEach(function (r) {
@@ -1603,23 +1627,13 @@
         r.synced = true;
         r.airtableId = rec.id;
         delete r._fields;
-        var photos = r._pendingPhotos;
-        delete r._pendingPhotos;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         renderDashboard();
-        if (photos) {
-          Object.keys(photos).forEach(function (catId) {
-            var fieldName = SYNC_CATEGORY_PHOTO_FIELDS[catId];
-            if (!fieldName) return;
-            photos[catId].forEach(function (dataUrl, i) {
-              atUploadAttachment(rec.id, fieldName, dataUrl, catId + "-observation-" + (i + 1) + ".jpg").catch(function (e) {
-                console.warn("Photo upload failed for " + fieldName + ":", e.message);
-              });
-            });
-          });
-        }
+        uploadPendingPhotos(r, rec.id);
       }).catch(function (e) { console.warn("Retry sync failed:", e.message); });
     });
+    var stuckPhotos = state.submissions.filter(function (r) { return r.synced && r.airtableId && r._pendingPhotos; });
+    stuckPhotos.forEach(function (r) { uploadPendingPhotos(r, r.airtableId); });
   }
 
   /* ---------------- INFO FIELD BINDINGS ---------------- */
@@ -1774,17 +1788,22 @@
   var walkBackdrop = document.getElementById("walk-backdrop");
 
   function getWalkDetail(record) {
-    if (record._fields) {
-      var d = fromAirtableRecord({ id: record.id, createdTime: record.submittedAt, fields: record._fields }, CATEGORIES);
-      if (record._pendingPhotos) {
-        d.categoryPhotos = d.categoryPhotos || {};
-        Object.keys(record._pendingPhotos).forEach(function (catId) {
-          d.categoryPhotos[catId] = record._pendingPhotos[catId];
-        });
-      }
-      return d;
+    var d = record._fields
+      ? fromAirtableRecord({ id: record.id, createdTime: record.submittedAt, fields: record._fields }, CATEGORIES)
+      : record;
+    // If this walk's photos didn't finish uploading to Airtable (or this IS
+    // the still-local copy), fall back to the locally-cached originals so
+    // they still show instead of silently vanishing.
+    var localMatch = record._pendingPhotos ? record : state.submissions.find(function (r) { return r.airtableId === record.id && r._pendingPhotos; });
+    if (localMatch && localMatch._pendingPhotos) {
+      d.categoryPhotos = d.categoryPhotos || {};
+      Object.keys(localMatch._pendingPhotos).forEach(function (catId) {
+        if (!d.categoryPhotos[catId] || !d.categoryPhotos[catId].length) {
+          d.categoryPhotos[catId] = localMatch._pendingPhotos[catId];
+        }
+      });
     }
-    return record;
+    return d;
   }
 
   function walkDetailRow(k, v) {

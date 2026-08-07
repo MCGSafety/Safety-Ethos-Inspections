@@ -84,10 +84,20 @@ var SYNC_CATEGORY_PHOTO_FIELDS = {
   environmental: "Environmental Photos",
 };
 
-async function atUploadAttachment(recordId, fieldName, dataUrl, filename) {
+// Field IDs (not names) — Airtable's content-upload endpoint requires the
+// attachment field's ID in the URL path, unlike the regular records API.
+var SYNC_CATEGORY_PHOTO_FIELD_IDS = {
+  ppe: "fldYZgr4cHMbCecY9",
+  workingConditions: "fldH539yn2xliWjOz",
+  bodyPositioning: "fldaocuKmqivwZ8vg",
+  tools: "fldbcK0fhynPKXzSF",
+  environmental: "fldSXpmXBj6c0nQcf",
+};
+
+async function atUploadAttachment(recordId, fieldId, dataUrl, filename) {
   const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);
   if (!m) throw new Error("Invalid photo data");
-  const res = await fetch(`https://content.airtable.com/v0/${AIRTABLE_BASE_ID}/${recordId}/${encodeURIComponent(fieldName)}/uploadAttachment`, {
+  const res = await fetch(`https://content.airtable.com/v0/${AIRTABLE_BASE_ID}/${recordId}/${fieldId}/uploadAttachment`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${airtableToken}`,
