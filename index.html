@@ -852,7 +852,8 @@
               '<div class="photo-frame" style="margin-top:8px;max-width:220px;"><img src="' + photo + '" alt="Observation photo" /></div>' +
               '<button type="button" class="inline-remove" data-act="cat-photo-remove" data-cat="' + c.id + '" data-idx="' + i + '" style="margin-top:4px;">Remove photo</button>'
             ) : (
-              '<label class="add-btn" for="photo-input-' + c.id + '-' + i + '" style="display:block;position:relative;text-align:center;margin-top:8px;cursor:pointer;">📷 Add photo' +
+              '<label class="add-btn" for="photo-input-' + c.id + '-' + i + '" style="display:block;position:relative;text-align:center;margin-top:8px;cursor:pointer;">' +
+                '<span class="add-btn-label">📷 Add photo</span>' +
                 '<input type="file" accept="image/*" id="photo-input-' + c.id + '-' + i + '" class="file-input-hidden" data-act="cat-photo-input" data-cat="' + c.id + '" data-idx="' + i + '" />' +
               '</label>'
             );
@@ -918,32 +919,43 @@
     if (!file) return;
     var cat = t.getAttribute("data-cat");
     var idx = Number(t.getAttribute("data-idx"));
+    var labelSpan = t.closest("label");
+    labelSpan = labelSpan && labelSpan.querySelector(".add-btn-label");
+    if (labelSpan) labelSpan.textContent = "Processing…";
     downscaleImage(file, 1280, 0.72).then(function (dataUrl) {
       state.awareness[cat].photos[idx] = dataUrl;
       renderAwareness();
       scheduleSave();
     }).catch(function (err) {
       console.warn("Could not process photo:", err.message);
+      alert("Could not use that photo. Please try again or pick a different one.");
+      if (labelSpan) labelSpan.textContent = "📷 Add photo";
     });
   });
   function downscaleImage(file, maxDim, quality) {
+    // Camera captures can be 10MB+ at full resolution. Decoding via an
+    // object URL (a cheap blob reference) instead of FileReader.readAsDataURL
+    // (which base64-encodes the whole original file into a giant string
+    // first) avoids the memory spike that silently kills this on iOS WebKit.
     return new Promise(function (resolve, reject) {
-      var reader = new FileReader();
-      reader.onerror = function () { reject(new Error("Could not read file")); };
-      reader.onload = function () {
-        var img = new Image();
-        img.onerror = function () { reject(new Error("Could not decode image")); };
-        img.onload = function () {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("Could not decode image")); };
+      img.onload = function () {
+        try {
           var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
           var w = Math.round(img.width * scale), h = Math.round(img.height * scale);
           var canvas = document.createElement("canvas");
           canvas.width = w; canvas.height = h;
           canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          URL.revokeObjectURL(url);
           resolve(canvas.toDataURL("image/jpeg", quality));
-        };
-        img.src = reader.result;
+        } catch (e) {
+          URL.revokeObjectURL(url);
+          reject(e);
+        }
       };
-      reader.readAsDataURL(file);
+      img.src = url;
     });
   }
 
