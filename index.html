@@ -249,6 +249,12 @@
     color: var(--ink-dim); font-size: 12px; cursor: pointer; padding: 4px 6px;
   }
   .inline-remove { background: none; border: none; color: var(--ink-dim); font-size: 12px; cursor: pointer; padding: 2px 4px; }
+  /* Visually hidden (not display:none) — iOS/iPadOS Safari can fail to route a
+     label click to a display:none file input, so the picker never opens. */
+  .file-input-hidden {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
   .add-btn {
     width: 100%; padding: 12px; border-radius: 10px; border: 1.5px dashed var(--border);
     background: transparent; color: var(--accent); font-weight: 700; font-size: 13.5px; cursor: pointer;
@@ -846,8 +852,8 @@
               '<div class="photo-frame" style="margin-top:8px;max-width:220px;"><img src="' + photo + '" alt="Observation photo" /></div>' +
               '<button type="button" class="inline-remove" data-act="cat-photo-remove" data-cat="' + c.id + '" data-idx="' + i + '" style="margin-top:4px;">Remove photo</button>'
             ) : (
-              '<label class="add-btn" style="display:block;text-align:center;margin-top:8px;cursor:pointer;">📷 Add photo' +
-                '<input type="file" accept="image/*" capture="environment" data-act="cat-photo-input" data-cat="' + c.id + '" data-idx="' + i + '" style="display:none;" />' +
+              '<label class="add-btn" style="display:block;position:relative;text-align:center;margin-top:8px;cursor:pointer;">📷 Add photo' +
+                '<input type="file" accept="image/*" capture="environment" class="file-input-hidden" data-act="cat-photo-input" data-cat="' + c.id + '" data-idx="' + i + '" />' +
               '</label>'
             );
             return '<div class="field" style="margin-top:10px;margin-bottom:0;">' +
