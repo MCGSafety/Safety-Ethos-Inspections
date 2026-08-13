@@ -852,8 +852,8 @@
               '<div class="photo-frame" style="margin-top:8px;max-width:220px;"><img src="' + photo + '" alt="Observation photo" /></div>' +
               '<button type="button" class="inline-remove" data-act="cat-photo-remove" data-cat="' + c.id + '" data-idx="' + i + '" style="margin-top:4px;">Remove photo</button>'
             ) : (
-              '<label class="add-btn" style="display:block;position:relative;text-align:center;margin-top:8px;cursor:pointer;">📷 Add photo' +
-                '<input type="file" accept="image/*" capture="environment" class="file-input-hidden" data-act="cat-photo-input" data-cat="' + c.id + '" data-idx="' + i + '" />' +
+              '<label class="add-btn" for="photo-input-' + c.id + '-' + i + '" style="display:block;position:relative;text-align:center;margin-top:8px;cursor:pointer;">📷 Add photo' +
+                '<input type="file" accept="image/*" id="photo-input-' + c.id + '-' + i + '" class="file-input-hidden" data-act="cat-photo-input" data-cat="' + c.id + '" data-idx="' + i + '" />' +
               '</label>'
             );
             return '<div class="field" style="margin-top:10px;margin-bottom:0;">' +
