@@ -404,6 +404,23 @@
   .photo-tag.bad { background: var(--risk); }
   .photo-card figcaption { font-size: 11px; color: var(--ink-dim); margin-top: 5px; line-height: 1.3; }
 
+  .photo-strip { display: flex; gap: 8px; margin-top: 8px; overflow-x: auto; padding-bottom: 2px; }
+  .photo-thumb {
+    position: relative; flex: 0 0 auto; width: 72px; height: 72px; border-radius: 10px;
+    overflow: hidden; border: 1px solid var(--border); background: var(--surface); touch-action: pan-y; cursor: grab;
+  }
+  .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+  .photo-thumb.dragging { opacity: 0.65; z-index: 5; cursor: grabbing; box-shadow: var(--shadow); }
+  .photo-thumb-remove {
+    position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 999px;
+    background: rgba(0,0,0,0.65); color: #fff; border: none; font-size: 14px; line-height: 1;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
+  }
+  .photo-thumb-add {
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+    border: 1.5px dashed var(--border); color: var(--accent); cursor: pointer; touch-action: manipulation;
+  }
+
   ::selection { background: var(--accent-soft); }
 
   /* ---------------- Tablet layout (portrait & landscape) ---------------- */
@@ -804,7 +821,8 @@
         if (!Array.isArray(aw.notes)) aw.notes = aw.notes ? [aw.notes] : [];
         aw.tally = aw.notes.length;
         if (!Array.isArray(aw.photos)) aw.photos = [];
-        while (aw.photos.length < aw.notes.length) aw.photos.push(null);
+        aw.photos = aw.photos.map(function (p) { return Array.isArray(p) ? p : (p ? [p] : []); });
+        while (aw.photos.length < aw.notes.length) aw.photos.push([]);
         if (aw.photos.length > aw.notes.length) aw.photos.length = aw.notes.length;
       });
       Object.keys(merged.action).forEach(function (id) {
@@ -847,23 +865,26 @@
         '<div class="reveal">' +
           '<label style="font-size:12.5px;font-weight:600;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.04em;">At-risk observations (' + s.notes.length + ')</label>' +
           s.notes.map(function (n, i) {
-            var photo = s.photos[i];
-            var photoHtml = photo ? (
-              '<div class="photo-frame" style="margin-top:8px;max-width:220px;"><img src="' + photo + '" alt="Observation photo" /></div>' +
-              '<button type="button" class="inline-remove" data-act="cat-photo-remove" data-cat="' + c.id + '" data-idx="' + i + '" style="margin-top:4px;">Remove photo</button>'
-            ) : (
-              '<label class="add-btn" for="photo-input-' + c.id + '-' + i + '" style="display:block;position:relative;text-align:center;margin-top:8px;cursor:pointer;">' +
-                '<span class="add-btn-label">📷 Add photo</span>' +
+            var photos = s.photos[i] || [];
+            var stripHtml = '<div class="photo-strip" data-cat="' + c.id + '" data-obs-idx="' + i + '">' +
+              photos.map(function (photo, pIdx) {
+                return '<div class="photo-thumb" data-photo-idx="' + pIdx + '">' +
+                  '<img src="' + photo + '" alt="Observation photo" />' +
+                  '<button type="button" class="photo-thumb-remove" data-act="cat-photo-remove" data-cat="' + c.id + '" data-obs-idx="' + i + '" data-photo-idx="' + pIdx + '" aria-label="Remove photo">×</button>' +
+                '</div>';
+              }).join("") +
+              '<label class="photo-thumb photo-thumb-add" for="photo-input-' + c.id + '-' + i + '">' +
+                '<span class="add-btn-label">📷</span>' +
                 '<input type="file" accept="image/*" id="photo-input-' + c.id + '-' + i + '" class="file-input-hidden" data-act="cat-photo-input" data-cat="' + c.id + '" data-idx="' + i + '" />' +
-              '</label>'
-            );
+              '</label>' +
+            '</div>';
             return '<div class="field" style="margin-top:10px;margin-bottom:0;">' +
               '<div style="display:flex;justify-content:space-between;align-items:baseline;">' +
                 '<label style="margin-bottom:4px;">Observation #' + (i + 1) + ' — what did you see?</label>' +
                 '<button type="button" class="inline-remove" data-act="cat-note-remove" data-cat="' + c.id + '" data-idx="' + i + '">Remove</button>' +
               '</div>' +
               '<textarea data-act="cat-note" data-cat="' + c.id + '" data-idx="' + i + '" placeholder="Briefly describe the at-risk behavior...">' + escapeHtml(n) + '</textarea>' +
-              photoHtml +
+              stripHtml +
             '</div>';
           }).join("") +
           (s.notes.length === 0 ? '<div class="empty-note" style="padding:14px 0;">No observations added yet.</div>' : "") +
@@ -891,16 +912,20 @@
     if (act === "status") {
       s.status = btn.getAttribute("data-val");
       if (s.status === "yes") { s.tally = 0; s.notes = []; s.photos = []; }
-      if (s.status === "no" && s.notes.length === 0) { s.notes.push(""); s.photos.push(null); s.tally = 1; }
+      if (s.status === "no" && s.notes.length === 0) { s.notes.push(""); s.photos.push([]); s.tally = 1; }
     }
-    if (act === "cat-note-add") { s.notes.push(""); s.photos.push(null); s.tally = s.notes.length; }
+    if (act === "cat-note-add") { s.notes.push(""); s.photos.push([]); s.tally = s.notes.length; }
     if (act === "cat-note-remove") {
       var removeIdx = Number(btn.getAttribute("data-idx"));
       s.notes.splice(removeIdx, 1);
       s.photos.splice(removeIdx, 1);
       s.tally = s.notes.length;
     }
-    if (act === "cat-photo-remove") { s.photos[Number(btn.getAttribute("data-idx"))] = null; }
+    if (act === "cat-photo-remove") {
+      var obsIdx = Number(btn.getAttribute("data-obs-idx"));
+      var photoIdx = Number(btn.getAttribute("data-photo-idx"));
+      s.photos[obsIdx].splice(photoIdx, 1);
+    }
     renderAwareness();
     renderTabDots();
     scheduleSave();
@@ -923,15 +948,66 @@
     labelSpan = labelSpan && labelSpan.querySelector(".add-btn-label");
     if (labelSpan) labelSpan.textContent = "Processing…";
     downscaleImage(file, 1280, 0.72).then(function (dataUrl) {
-      state.awareness[cat].photos[idx] = dataUrl;
+      state.awareness[cat].photos[idx].push(dataUrl);
       renderAwareness();
       scheduleSave();
     }).catch(function (err) {
       console.warn("Could not process photo:", err.message);
       alert("Could not use that photo. Please try again or pick a different one.");
-      if (labelSpan) labelSpan.textContent = "📷 Add photo";
+      if (labelSpan) labelSpan.textContent = "📷";
     });
   });
+
+  /* ---------------- PHOTO DRAG-TO-REORDER (mouse + touch via Pointer Events) ---------------- */
+  var photoDrag = null;
+  document.getElementById("awareness-cards").addEventListener("pointerdown", function (e) {
+    if (e.target.closest(".photo-thumb-remove")) return;
+    var thumb = e.target.closest(".photo-thumb:not(.photo-thumb-add)");
+    if (!thumb) return;
+    var strip = thumb.closest(".photo-strip");
+    if (!strip) return;
+    e.preventDefault();
+    thumb.setPointerCapture(e.pointerId);
+    photoDrag = {
+      pointerId: e.pointerId,
+      thumb: thumb,
+      strip: strip,
+      cat: strip.getAttribute("data-cat"),
+      obsIdx: Number(strip.getAttribute("data-obs-idx")),
+      fromIdx: Number(thumb.getAttribute("data-photo-idx")),
+      startX: e.clientX
+    };
+    thumb.classList.add("dragging");
+  });
+  document.getElementById("awareness-cards").addEventListener("pointermove", function (e) {
+    if (!photoDrag || e.pointerId !== photoDrag.pointerId) return;
+    photoDrag.thumb.style.transform = "translateX(" + (e.clientX - photoDrag.startX) + "px)";
+  });
+  function endPhotoDrag(e) {
+    if (!photoDrag || e.pointerId !== photoDrag.pointerId) return;
+    var drag = photoDrag;
+    photoDrag = null;
+    var siblings = Array.prototype.filter.call(drag.strip.children, function (el) {
+      return el.classList.contains("photo-thumb") && !el.classList.contains("photo-thumb-add");
+    });
+    var targetIdx = siblings.length - 1;
+    for (var k = 0; k < siblings.length; k++) {
+      var r = siblings[k].getBoundingClientRect();
+      if (e.clientX < r.left + r.width / 2) { targetIdx = k; break; }
+    }
+    var arr = state.awareness[drag.cat].photos[drag.obsIdx];
+    if (arr && arr.length > 1 && targetIdx !== drag.fromIdx) {
+      var moved = arr.splice(drag.fromIdx, 1)[0];
+      arr.splice(targetIdx, 0, moved);
+      scheduleSave();
+    }
+    drag.thumb.style.transform = "";
+    drag.thumb.classList.remove("dragging");
+    renderAwareness();
+  }
+  document.getElementById("awareness-cards").addEventListener("pointerup", endPhotoDrag);
+  document.getElementById("awareness-cards").addEventListener("pointercancel", endPhotoDrag);
+
   function downscaleImage(file, maxDim, quality) {
     // Camera captures can be 10MB+ at full resolution. Decoding via an
     // object URL (a cheap blob reference) instead of FileReader.readAsDataURL
@@ -1534,7 +1610,7 @@
       CATEGORIES.map(function (c) {
         var s = state.awareness[c.id];
         var v = s.status === null ? "Pending" : s.status === "yes" ? "Clear" : s.tally + " at risk";
-        var photos = (s.photos || []).filter(function (p) { return p; });
+        var photos = (s.photos || []).reduce(function (acc, arr) { return acc.concat(arr || []); }, []);
         var photosHtml = photos.length ? '<div class="photo-gallery" style="margin:0 0 10px;">' + photos.map(function (url) {
           return '<figure class="photo-card"><div class="photo-frame"><img src="' + url + '" alt="Observation photo" /></div></figure>';
         }).join("") + "</div>" : "";
@@ -1611,7 +1687,7 @@
     record._fields = airtableFields;
     var pendingPhotos = {};
     CATEGORIES.forEach(function (c) {
-      var photos = (state.awareness[c.id].photos || []).filter(function (p) { return p; });
+      var photos = (state.awareness[c.id].photos || []).reduce(function (acc, arr) { return acc.concat(arr || []); }, []);
       if (photos.length) pendingPhotos[c.id] = photos;
     });
     if (Object.keys(pendingPhotos).length) record._pendingPhotos = pendingPhotos;
