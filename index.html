@@ -1539,8 +1539,12 @@
     if (!btn) return;
     btn.textContent = "Syncing…";
     btn.disabled = true;
-    flushPendingSyncs().then(function () {
+    var errors = [];
+    flushPendingSyncs(errors).then(function () {
       renderDashboard();
+      if (errors.length) {
+        alert("Some walks did not sync:\n\n" + errors.join("\n\n"));
+      }
     });
   }
 
@@ -1712,7 +1716,11 @@
     });
   });
 
-  function uploadPendingPhotos(r, recordId) {
+  function walkLabel(r) {
+    return (r.site || "Unnamed site") + " (" + (r.date || "no date") + ")";
+  }
+
+  function uploadPendingPhotos(r, recordId, errors) {
     var photos = r._pendingPhotos;
     if (!photos) return Promise.resolve();
     var uploads = [];
@@ -1722,6 +1730,7 @@
       photos[catId].forEach(function (dataUrl, i) {
         uploads.push(atUploadAttachment(recordId, fieldId, dataUrl, catId + "-observation-" + (i + 1) + ".jpg").catch(function (e) {
           console.warn("Photo upload failed for " + catId + ":", e.message);
+          if (errors) errors.push(walkLabel(r) + " — photo (" + catId + "): " + e.message);
           return null;
         }));
       });
@@ -1736,7 +1745,7 @@
     });
   }
 
-  function flushPendingSyncs() {
+  function flushPendingSyncs(errors) {
     var pending = state.submissions.filter(function (r) { return !r.synced && r._fields; });
     var createPromises = pending.map(function (r) {
       return atCreate(AIRTABLE_TABLE_NAME, r._fields).then(function (rec) {
@@ -1745,11 +1754,14 @@
         delete r._fields;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         renderDashboard();
-        return uploadPendingPhotos(r, rec.id);
-      }).catch(function (e) { console.warn("Retry sync failed:", e.message); });
+        return uploadPendingPhotos(r, rec.id, errors);
+      }).catch(function (e) {
+        console.warn("Retry sync failed:", e.message);
+        if (errors) errors.push(walkLabel(r) + ": " + e.message);
+      });
     });
     var stuckPhotos = state.submissions.filter(function (r) { return r.synced && r.airtableId && r._pendingPhotos; });
-    var photoPromises = stuckPhotos.map(function (r) { return uploadPendingPhotos(r, r.airtableId); });
+    var photoPromises = stuckPhotos.map(function (r) { return uploadPendingPhotos(r, r.airtableId, errors); });
     return Promise.all(createPromises.concat(photoPromises));
   }
 
