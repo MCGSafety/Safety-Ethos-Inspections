@@ -1540,10 +1540,18 @@
     btn.textContent = "Syncing…";
     btn.disabled = true;
     var errors = [];
+    var targeted = state.submissions.filter(function (r) { return !r.synced || r._pendingPhotos; });
+    var summary = targeted.map(function (r) {
+      return walkLabel(r) + " — synced:" + !!r.synced + " hasFields:" + !!r._fields + " hasPhotos:" + !!r._pendingPhotos + " airtableId:" + (r.airtableId || "none");
+    }).join("\n");
     flushPendingSyncs(errors).then(function () {
       renderDashboard();
-      if (errors.length) {
-        alert("Some walks did not sync:\n\n" + errors.join("\n\n"));
+      if (targeted.length === 0) {
+        alert("Nothing to sync — every walk on this device is already marked synced.");
+      } else if (errors.length) {
+        alert("Sync attempted " + targeted.length + " walk(s), " + errors.length + " problem(s):\n\n" + errors.join("\n\n") + "\n\n---\n" + summary);
+      } else {
+        alert("Sync attempted " + targeted.length + " walk(s), no errors reported.\n\n" + summary);
       }
     });
   }
