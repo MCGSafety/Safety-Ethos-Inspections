@@ -1435,7 +1435,7 @@
         return '<div class="summary-row recent-row" data-idx="' + idx + '"><span class="k">' + label + '</span><span class="v">' + chip + syncChip + "</span></div>";
       }).join("") + '<button class="add-btn" id="see-all-history-btn" style="margin-top:10px;">See all inspections</button></div>';
 
-    wrap.innerHTML = filterHtml + statsHtml + trendHtml + walksBySiteHtml + barsHtml + recentHtml + exportRow() + airtableFooter();
+    wrap.innerHTML = filterHtml + statsHtml + trendHtml + walksBySiteHtml + barsHtml + recentHtml + syncRow() + exportRow() + airtableFooter();
     document.getElementById("dashboard-site-filter").addEventListener("change", function (e) { dashboardSiteFilter = e.target.value; paintDashboard(allSubs); });
     wrap.querySelectorAll(".recent-row").forEach(function (rowEl) {
       rowEl.addEventListener("click", function () { openWalkSheet(recent[Number(rowEl.getAttribute("data-idx"))]); });
@@ -1444,6 +1444,28 @@
     if (seeAllBtn) seeAllBtn.addEventListener("click", function () { switchTab("history"); });
     var exportBtn = document.getElementById("export-btn");
     if (exportBtn) exportBtn.addEventListener("click", handleExport);
+    var syncBtn = document.getElementById("sync-now-btn");
+    if (syncBtn) syncBtn.addEventListener("click", handleSyncNow);
+  }
+
+  function pendingSyncCount() {
+    return state.submissions.filter(function (r) { return !r.synced || r._pendingPhotos; }).length;
+  }
+
+  function syncRow() {
+    var count = pendingSyncCount();
+    var label = count > 0 ? "Sync now (" + count + " pending)" : "Sync now";
+    return '<div class="action-row"><button class="btn-ghost" id="sync-now-btn" style="flex:1 1 100%;">' + label + "</button></div>";
+  }
+
+  function handleSyncNow() {
+    var btn = document.getElementById("sync-now-btn");
+    if (!btn) return;
+    btn.textContent = "Syncing…";
+    btn.disabled = true;
+    flushPendingSyncs().then(function () {
+      renderDashboard();
+    });
   }
 
   function exportRow() {
@@ -1616,7 +1638,7 @@
 
   function uploadPendingPhotos(r, recordId) {
     var photos = r._pendingPhotos;
-    if (!photos) return;
+    if (!photos) return Promise.resolve();
     var uploads = [];
     Object.keys(photos).forEach(function (catId) {
       var fieldId = SYNC_CATEGORY_PHOTO_FIELD_IDS[catId];
@@ -1628,7 +1650,7 @@
         }));
       });
     });
-    Promise.all(uploads).then(function (results) {
+    return Promise.all(uploads).then(function (results) {
       if (results.every(function (r2) { return r2 !== null; })) {
         delete r._pendingPhotos;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -1640,18 +1662,19 @@
 
   function flushPendingSyncs() {
     var pending = state.submissions.filter(function (r) { return !r.synced && r._fields; });
-    pending.forEach(function (r) {
-      atCreate(AIRTABLE_TABLE_NAME, r._fields).then(function (rec) {
+    var createPromises = pending.map(function (r) {
+      return atCreate(AIRTABLE_TABLE_NAME, r._fields).then(function (rec) {
         r.synced = true;
         r.airtableId = rec.id;
         delete r._fields;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         renderDashboard();
-        uploadPendingPhotos(r, rec.id);
+        return uploadPendingPhotos(r, rec.id);
       }).catch(function (e) { console.warn("Retry sync failed:", e.message); });
     });
     var stuckPhotos = state.submissions.filter(function (r) { return r.synced && r.airtableId && r._pendingPhotos; });
-    stuckPhotos.forEach(function (r) { uploadPendingPhotos(r, r.airtableId); });
+    var photoPromises = stuckPhotos.map(function (r) { return uploadPendingPhotos(r, r.airtableId); });
+    return Promise.all(createPromises.concat(photoPromises));
   }
 
   /* ---------------- INFO FIELD BINDINGS ---------------- */
