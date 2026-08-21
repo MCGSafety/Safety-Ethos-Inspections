@@ -1720,6 +1720,31 @@
     return (r.site || "Unnamed site") + " (" + (r.date || "no date") + ")";
   }
 
+  // Fallback for walks whose full _fields snapshot was lost (e.g. submitted
+  // before retry-sync existed). Rebuilds a minimal record from the summary
+  // data still stored on the submission itself, so the walk can at least
+  // reach Airtable instead of being stuck as "pending" forever.
+  function buildFieldsFromRecord(r) {
+    var fields = {
+      "Site Location": r.site || "",
+      "Date": r.date || null,
+      "Area Inspected": r.area || "",
+      "Inspector": r.inspector || "",
+      "Accompanied By": r.accompanied || "",
+    };
+    CATEGORIES.forEach(function (c) {
+      var label = SYNC_CATEGORY_LABELS[c.id];
+      var flagged = r.categoryFlags && r.categoryFlags[c.id];
+      fields[label + " Status"] = flagged ? "At Risk" : "Clear";
+    });
+    fields["Categories Flagged"] = r.categoriesFlagged || 0;
+    fields["At-Risk Observations"] = r.atRiskTotal || 0;
+    fields["Observations Logged"] = r.observationsTotal || 0;
+    fields["SWA Used Count"] = r.swaUsedCount || 0;
+    fields["Additional Notes"] = r.notes || "";
+    return fields;
+  }
+
   function uploadPendingPhotos(r, recordId, errors) {
     var photos = r._pendingPhotos;
     if (!photos) return Promise.resolve();
@@ -1746,9 +1771,10 @@
   }
 
   function flushPendingSyncs(errors) {
-    var pending = state.submissions.filter(function (r) { return !r.synced && r._fields; });
+    var pending = state.submissions.filter(function (r) { return !r.synced; });
     var createPromises = pending.map(function (r) {
-      return atCreate(AIRTABLE_TABLE_NAME, r._fields).then(function (rec) {
+      var fields = r._fields || buildFieldsFromRecord(r);
+      return atCreate(AIRTABLE_TABLE_NAME, fields).then(function (rec) {
         r.synced = true;
         r.airtableId = rec.id;
         delete r._fields;
