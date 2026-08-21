@@ -1694,7 +1694,7 @@
   document.getElementById("submit-btn").addEventListener("click", function () {
     if (!confirm("Submit this walk to your dashboard and start a new one?")) return;
     var record = buildSubmissionRecord();
-    var airtableFields = buildAirtableFields(state, CATEGORIES);
+    var airtableFields = sanitizeFields(buildAirtableFields(state, CATEGORIES));
     record.synced = false;
     record._fields = airtableFields;
     var pendingPhotos = {};
@@ -1778,10 +1778,28 @@
     });
   }
 
+  // Airtable long-text fields cap out around 100,000 characters and reject
+  // the whole record (INVALID_VALUE_FOR_COLUMN) if any field exceeds that or
+  // holds a non-string value. Sanitize defensively so one bad field can't
+  // permanently block an otherwise-valid walk from syncing.
+  var TEXT_FIELD_MAX = 90000;
+  function sanitizeFields(fields) {
+    var clean = {};
+    Object.keys(fields).forEach(function (key) {
+      var v = fields[key];
+      if (typeof v === "string" && v.length > TEXT_FIELD_MAX) {
+        clean[key] = v.slice(0, TEXT_FIELD_MAX) + "\n\n[truncated — original was too long to sync]";
+      } else {
+        clean[key] = v;
+      }
+    });
+    return clean;
+  }
+
   function flushPendingSyncs(errors) {
     var pending = state.submissions.filter(function (r) { return !r.synced; });
     var createPromises = pending.map(function (r) {
-      var fields = r._fields || buildFieldsFromRecord(r);
+      var fields = sanitizeFields(r._fields || buildFieldsFromRecord(r));
       return atCreate(AIRTABLE_TABLE_NAME, fields).then(function (rec) {
         r.synced = true;
         r.airtableId = rec.id;
