@@ -1479,6 +1479,13 @@
   }
 
   var dashboardSiteFilter = "";
+  var dashboardMonthFilter = "";
+  function wireDashboardFilters(allSubs) {
+    var siteSel = document.getElementById("dashboard-site-filter");
+    if (siteSel) siteSel.addEventListener("change", function (e) { dashboardSiteFilter = e.target.value; paintDashboard(allSubs); });
+    var monthSel = document.getElementById("dashboard-month-filter");
+    if (monthSel) monthSel.addEventListener("change", function (e) { dashboardMonthFilter = e.target.value; paintDashboard(allSubs); });
+  }
   function paintDashboard(allSubs) {
     var wrap = document.getElementById("dashboard-body");
     if (allSubs.length === 0) {
@@ -1492,17 +1499,31 @@
     if (dashboardSiteFilter && sites.indexOf(dashboardSiteFilter) === -1) dashboardSiteFilter = "";
     var subs = dashboardSiteFilter ? allSubs.filter(function (r) { return (r.site || "Unnamed site") === dashboardSiteFilter; }) : allSubs;
 
-    var filterHtml = '<div class="field" style="margin-bottom:16px;"><label for="dashboard-site-filter">Site</label><select id="dashboard-site-filter"><option value=""' +
-      (dashboardSiteFilter ? "" : " selected") + '>All sites</option>' +
-      sites.map(function (s) { return '<option value="' + escapeHtml(s) + '"' + (s === dashboardSiteFilter ? " selected" : "") + ">" + escapeHtml(s) + "</option>"; }).join("") +
-      "</select></div>";
+    var todayMonthKey = monthKeyOf(todayISO());
+    var monthSet = {};
+    monthSet[todayMonthKey] = true;
+    allSubs.forEach(function (r) { var mk = r.date && monthKeyOf(r.date); if (mk) monthSet[mk] = true; });
+    var monthOptions = Object.keys(monthSet).sort().reverse();
+    if (dashboardMonthFilter && monthOptions.indexOf(dashboardMonthFilter) === -1) dashboardMonthFilter = "";
+    var currentMonthKey = dashboardMonthFilter || todayMonthKey;
+
+    var filterHtml = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">' +
+      '<div class="field" style="flex:1;min-width:140px;margin-bottom:0;"><label for="dashboard-site-filter">Site</label><select id="dashboard-site-filter"><option value=""' +
+        (dashboardSiteFilter ? "" : " selected") + '>All sites</option>' +
+        sites.map(function (s) { return '<option value="' + escapeHtml(s) + '"' + (s === dashboardSiteFilter ? " selected" : "") + ">" + escapeHtml(s) + "</option>"; }).join("") +
+      "</select></div>" +
+      '<div class="field" style="flex:1;min-width:140px;margin-bottom:0;"><label for="dashboard-month-filter">Month</label><select id="dashboard-month-filter">' +
+        monthOptions.map(function (mk) {
+          return '<option value="' + mk + '"' + (mk === currentMonthKey ? " selected" : "") + '>' + monthLabelOf(mk) + (mk === todayMonthKey ? " (current)" : "") + "</option>";
+        }).join("") +
+      "</select></div>" +
+    "</div>";
 
     if (subs.length === 0) {
       wrap.innerHTML = filterHtml + '<div class="empty-note">No walks logged for this site yet.</div>' + airtableFooter();
-      document.getElementById("dashboard-site-filter").addEventListener("change", function (e) { dashboardSiteFilter = e.target.value; paintDashboard(allSubs); });
+      wireDashboardFilters(allSubs);
       return;
     }
-    var currentMonthKey = monthKeyOf(todayISO());
     var monthSubs = subs.filter(function (r) { return r.date && monthKeyOf(r.date) === currentMonthKey; });
 
     var totalObs = monthSubs.reduce(function (s, r) { return s + r.atRiskTotal; }, 0);
@@ -1558,7 +1579,7 @@
       }).join("") + '<button class="add-btn" id="see-all-history-btn" style="margin-top:10px;">See all inspections</button></div>';
 
     wrap.innerHTML = filterHtml + statsHtml + trendHtml + walksBySiteHtml + barsHtml + recentHtml + syncRow() + exportRow() + airtableFooter();
-    document.getElementById("dashboard-site-filter").addEventListener("change", function (e) { dashboardSiteFilter = e.target.value; paintDashboard(allSubs); });
+    wireDashboardFilters(allSubs);
     wrap.querySelectorAll(".recent-row").forEach(function (rowEl) {
       rowEl.addEventListener("click", function () { openWalkSheet(recent[Number(rowEl.getAttribute("data-idx"))]); });
     });
