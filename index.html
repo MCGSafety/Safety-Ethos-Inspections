@@ -1398,15 +1398,20 @@
       weekBuckets[wk][site] = (weekBuckets[wk][site] || 0) + v;
       siteNames[site] = true;
     });
-    var weeks = Object.keys(weekBuckets).sort();
-    if (weeks.length === 0) {
+    if (Object.keys(weekBuckets).length === 0) {
       return '<div class="summary-block"><h3>' + opts.title + '</h3>' +
         '<div class="empty-note" style="padding:18px 8px;">No walks logged yet.</div></div>';
     }
 
-    var thisWeek = weeks[weeks.length - 1];
-    var lastWeek = weeks.length > 1 ? weeks[weeks.length - 2] : null;
-    var monthKey = monthKeyOf(thisWeek);
+    // Anchor "this week"/"this month" to today's actual date rather than the
+    // most recent date with data, so these always match the dashboard's
+    // top stat row (e.g. right after a month boundary mid-week).
+    var today = todayISO();
+    var thisWeek = weekKeyOf(today);
+    var todayD = new Date(today + "T00:00:00");
+    var lastWeekD = new Date(todayD.getFullYear(), todayD.getMonth(), todayD.getDate() - 7);
+    var lastWeek = weekKeyOf(lastWeekD.getFullYear() + "-" + String(lastWeekD.getMonth() + 1).padStart(2, "0") + "-" + String(lastWeekD.getDate()).padStart(2, "0"));
+    var monthKey = monthKeyOf(today);
     var prevMonthKey = prevMonthKeyOf(monthKey);
 
     subs.forEach(function (r) {
