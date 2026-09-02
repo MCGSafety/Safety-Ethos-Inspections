@@ -790,11 +790,22 @@
     return d.getFullYear() + "-" + m + "-" + day;
   }
 
+  var CORRECTIVE_ACTION_OPTIONS = [
+    "Corrected on the spot",
+    "Employee coached / retrained",
+    "PPE provided or replaced",
+    "Equipment repaired or replaced",
+    "Work area corrected (housekeeping, barricaded, etc.)",
+    "Procedure reviewed with employee",
+    "Supervisor notified for follow-up",
+    "Work stopped until corrected"
+  ];
+
   function defaultState() {
     var awareness = {}, action = {};
     CATEGORIES.forEach(function (c) {
       awareness[c.id] = { status: null, tally: 0, notes: [], photos: [] };
-      action[c.id] = { qualified: null, accountable: "", correctiveActions: [] };
+      action[c.id] = { qualified: null, accountable: "", correctiveActions: [], correctiveActionOther: [] };
     });
     return {
       site: "", date: todayISO(), area: "", inspector: "", accompanied: "",
@@ -828,6 +839,11 @@
       Object.keys(merged.action).forEach(function (id) {
         var ac = merged.action[id];
         if (!Array.isArray(ac.correctiveActions)) ac.correctiveActions = ac.correctiveAction ? [ac.correctiveAction] : [];
+        if (!Array.isArray(ac.correctiveActionOther)) {
+          ac.correctiveActionOther = ac.correctiveActions.map(function (v) {
+            return !!v && CORRECTIVE_ACTION_OPTIONS.indexOf(v) === -1;
+          });
+        }
       });
       return merged;
     } catch (e) { return defaultState(); }
@@ -1036,6 +1052,20 @@
   }
 
   /* ---------------- ACTION ---------------- */
+  function correctiveActionFieldHtml(catId, idx, value, isOther, label, noteText) {
+    var optionsHtml = '<option value="">Select an action...</option>' +
+      CORRECTIVE_ACTION_OPTIONS.map(function (opt) {
+        return '<option value="' + escapeHtml(opt) + '"' + (!isOther && value === opt ? " selected" : "") + '>' + escapeHtml(opt) + "</option>";
+      }).join("") +
+      '<option value="__other__"' + (isOther ? " selected" : "") + '>Other (specify)</option>';
+    return '<div class="field" style="margin-top:12px;margin-bottom:0;">' +
+        '<label>' + label + '</label>' +
+        (noteText ? '<div style="font-size:12px;color:var(--ink-dim);margin:-2px 0 6px;">For: "' + escapeHtml(noteText) + '"</div>' : "") +
+        '<select data-act="correctiveActionSelect" data-cat="' + catId + '" data-idx="' + idx + '">' + optionsHtml + "</select>" +
+        (isOther ? '<textarea data-act="correctiveAction" data-cat="' + catId + '" data-idx="' + idx + '" placeholder="Describe the corrective action..." style="margin-top:8px;">' + escapeHtml(value) + "</textarea>" : "") +
+      "</div>";
+  }
+
   function renderAction() {
     var wrap = document.getElementById("action-cards");
     var flagged = CATEGORIES.filter(function (c) { return state.awareness[c.id].status === "no"; });
@@ -1048,19 +1078,13 @@
       var aware = state.awareness[c.id];
       while (s.correctiveActions.length < aware.tally) s.correctiveActions.push("");
       if (s.correctiveActions.length > aware.tally) s.correctiveActions.length = aware.tally;
+      if (!Array.isArray(s.correctiveActionOther)) s.correctiveActionOther = [];
+      while (s.correctiveActionOther.length < aware.tally) s.correctiveActionOther.push(false);
+      if (s.correctiveActionOther.length > aware.tally) s.correctiveActionOther.length = aware.tally;
       var multi = aware.tally > 1;
       var correctiveHtml = multi ? aware.notes.map(function (n, i) {
-        return '<div class="field" style="margin-top:12px;margin-bottom:0;">' +
-          '<label>Corrective action — Observation #' + (i + 1) + '</label>' +
-          (n ? '<div style="font-size:12px;color:var(--ink-dim);margin:-2px 0 6px;">For: "' + escapeHtml(n) + '"</div>' : "") +
-          '<textarea data-act="correctiveAction" data-cat="' + c.id + '" data-idx="' + i + '" placeholder="What was done to fix it...">' + escapeHtml(s.correctiveActions[i] || "") + "</textarea>" +
-        "</div>";
-      }).join("") : (
-        '<div class="field" style="margin-top:12px;margin-bottom:0;">' +
-          '<label>Corrective action taken</label>' +
-          '<textarea data-act="correctiveAction" data-cat="' + c.id + '" data-idx="0" placeholder="What was done to fix it...">' + escapeHtml(s.correctiveActions[0] || "") + "</textarea>" +
-        "</div>"
-      );
+        return correctiveActionFieldHtml(c.id, i, s.correctiveActions[i] || "", !!s.correctiveActionOther[i], "Corrective action — Observation #" + (i + 1), n);
+      }).join("") : correctiveActionFieldHtml(c.id, 0, s.correctiveActions[0] || "", !!s.correctiveActionOther[0], "Corrective action taken", null);
       return '<div class="card">' +
         '<div class="cat-head">' + iconSpan(c.id) +
           '<div class="cat-title"><h3>' + c.label + '</h3><p>' + aware.tally + ' at-risk observation' + (aware.tally === 1 ? "" : "s") + ' recorded</p></div>' +
@@ -1104,6 +1128,23 @@
       state.action[cat].correctiveActions[Number(t.getAttribute("data-idx"))] = t.value;
       scheduleSave();
     }
+  });
+  document.getElementById("action-cards").addEventListener("change", function (e) {
+    var sel = e.target.closest("select[data-act='correctiveActionSelect']");
+    if (!sel) return;
+    var cat = sel.getAttribute("data-cat");
+    var idx = Number(sel.getAttribute("data-idx"));
+    var val = sel.value;
+    var ac = state.action[cat];
+    if (val === "__other__") {
+      ac.correctiveActionOther[idx] = true;
+      if (CORRECTIVE_ACTION_OPTIONS.indexOf(ac.correctiveActions[idx]) !== -1) ac.correctiveActions[idx] = "";
+    } else {
+      ac.correctiveActionOther[idx] = false;
+      ac.correctiveActions[idx] = val;
+    }
+    scheduleSave();
+    renderAction();
   });
 
   /* ---------------- ACCOUNTABILITY ---------------- */
