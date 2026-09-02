@@ -1480,11 +1480,14 @@
 
   var dashboardSiteFilter = "";
   var dashboardMonthFilter = "";
+  var dashboardInspectorFilter = "";
   function wireDashboardFilters(allSubs) {
     var siteSel = document.getElementById("dashboard-site-filter");
     if (siteSel) siteSel.addEventListener("change", function (e) { dashboardSiteFilter = e.target.value; paintDashboard(allSubs); });
     var monthSel = document.getElementById("dashboard-month-filter");
     if (monthSel) monthSel.addEventListener("change", function (e) { dashboardMonthFilter = e.target.value; paintDashboard(allSubs); });
+    var inspectorSel = document.getElementById("dashboard-inspector-filter");
+    if (inspectorSel) inspectorSel.addEventListener("change", function (e) { dashboardInspectorFilter = e.target.value; paintDashboard(allSubs); });
   }
   function paintDashboard(allSubs) {
     var wrap = document.getElementById("dashboard-body");
@@ -1497,7 +1500,11 @@
     }
     var sites = Array.from(new Set(allSubs.map(function (r) { return r.site || "Unnamed site"; }))).sort();
     if (dashboardSiteFilter && sites.indexOf(dashboardSiteFilter) === -1) dashboardSiteFilter = "";
-    var subs = dashboardSiteFilter ? allSubs.filter(function (r) { return (r.site || "Unnamed site") === dashboardSiteFilter; }) : allSubs;
+    var inspectors = Array.from(new Set(allSubs.map(function (r) { return r.inspector || "Unspecified"; }))).sort();
+    if (dashboardInspectorFilter && inspectors.indexOf(dashboardInspectorFilter) === -1) dashboardInspectorFilter = "";
+    var subs = allSubs
+      .filter(function (r) { return !dashboardSiteFilter || (r.site || "Unnamed site") === dashboardSiteFilter; })
+      .filter(function (r) { return !dashboardInspectorFilter || (r.inspector || "Unspecified") === dashboardInspectorFilter; });
 
     var todayMonthKey = monthKeyOf(todayISO());
     var monthSet = {};
@@ -1512,6 +1519,10 @@
         (dashboardSiteFilter ? "" : " selected") + '>All sites</option>' +
         sites.map(function (s) { return '<option value="' + escapeHtml(s) + '"' + (s === dashboardSiteFilter ? " selected" : "") + ">" + escapeHtml(s) + "</option>"; }).join("") +
       "</select></div>" +
+      '<div class="field" style="flex:1;min-width:140px;margin-bottom:0;"><label for="dashboard-inspector-filter">Inspector</label><select id="dashboard-inspector-filter"><option value=""' +
+        (dashboardInspectorFilter ? "" : " selected") + '>All inspectors</option>' +
+        inspectors.map(function (i) { return '<option value="' + escapeHtml(i) + '"' + (i === dashboardInspectorFilter ? " selected" : "") + ">" + escapeHtml(i) + "</option>"; }).join("") +
+      "</select></div>" +
       '<div class="field" style="flex:1;min-width:140px;margin-bottom:0;"><label for="dashboard-month-filter">Month</label><select id="dashboard-month-filter">' +
         monthOptions.map(function (mk) {
           return '<option value="' + mk + '"' + (mk === currentMonthKey ? " selected" : "") + '>' + monthLabelOf(mk) + (mk === todayMonthKey ? " (current)" : "") + "</option>";
@@ -1520,7 +1531,7 @@
     "</div>";
 
     if (subs.length === 0) {
-      wrap.innerHTML = filterHtml + '<div class="empty-note">No walks logged for this site yet.</div>' + airtableFooter();
+      wrap.innerHTML = filterHtml + '<div class="empty-note">No walks match these filters yet.</div>' + airtableFooter();
       wireDashboardFilters(allSubs);
       return;
     }
