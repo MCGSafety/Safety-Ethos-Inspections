@@ -963,7 +963,7 @@
     var labelSpan = t.closest("label");
     labelSpan = labelSpan && labelSpan.querySelector(".add-btn-label");
     if (labelSpan) labelSpan.textContent = "Processing…";
-    downscaleImage(file, 1024, 0.6).then(function (dataUrl) {
+    downscaleImage(file, 800, 0.5).then(function (dataUrl) {
       state.awareness[cat].photos[idx].push(dataUrl);
       renderAwareness();
       scheduleSave();
