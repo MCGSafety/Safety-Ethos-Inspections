@@ -1841,20 +1841,28 @@
   function uploadPendingPhotos(r, recordId, errors) {
     var photos = r._pendingPhotos;
     if (!photos) return Promise.resolve();
-    var uploads = [];
+    var jobs = [];
     Object.keys(photos).forEach(function (catId) {
       var fieldId = SYNC_CATEGORY_PHOTO_FIELD_IDS[catId];
       if (!fieldId) return;
       photos[catId].forEach(function (dataUrl, i) {
-        uploads.push(atUploadAttachment(recordId, fieldId, dataUrl, catId + "-observation-" + (i + 1) + ".jpg").catch(function (e) {
-          console.warn("Photo upload failed for " + catId + ":", e.message);
-          if (errors) errors.push(walkLabel(r) + " — photo (" + catId + "): " + e.message);
-          return null;
-        }));
+        jobs.push({ catId: catId, fieldId: fieldId, dataUrl: dataUrl, filename: catId + "-observation-" + (i + 1) + ".jpg" });
       });
     });
-    return Promise.all(uploads).then(function (results) {
-      if (results.every(function (r2) { return r2 !== null; })) {
+    // Uploaded one at a time (not Promise.all) rather than firing several
+    // concurrent requests at the same record/field, which Airtable's
+    // attachment-upload endpoint can reject.
+    var allOk = true;
+    return jobs.reduce(function (chain, job) {
+      return chain.then(function () {
+        return atUploadAttachment(recordId, job.fieldId, job.dataUrl, job.filename).catch(function (e) {
+          console.warn("Photo upload failed for " + job.catId + ":", e.message);
+          if (errors) errors.push(walkLabel(r) + " — photo (" + job.catId + "): " + e.message);
+          allOk = false;
+        });
+      });
+    }, Promise.resolve()).then(function () {
+      if (allOk) {
         delete r._pendingPhotos;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       } else {
