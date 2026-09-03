@@ -1600,6 +1600,12 @@
     if (exportBtn) exportBtn.addEventListener("click", handleExport);
     var syncBtn = document.getElementById("sync-now-btn");
     if (syncBtn) syncBtn.addEventListener("click", handleSyncNow);
+    var reconnectBtn = document.getElementById("reconnect-airtable-btn");
+    if (reconnectBtn) reconnectBtn.addEventListener("click", function () {
+      if (!confirm("This disconnects Airtable on this device only and asks for a Personal Access Token again. Walks already saved on this device are not affected. Continue?")) return;
+      clearAirtableToken();
+      showSetup("Enter a new Personal Access Token to reconnect this device to Airtable.");
+    });
   }
 
   function pendingSyncCount() {
@@ -1609,7 +1615,8 @@
   function syncRow() {
     var count = pendingSyncCount();
     var label = count > 0 ? "Sync now (" + count + " pending)" : "Sync now";
-    return '<div class="action-row"><button class="btn-ghost" id="sync-now-btn" style="flex:1 1 100%;">' + label + "</button></div>";
+    return '<div class="action-row"><button class="btn-ghost" id="sync-now-btn" style="flex:1 1 100%;">' + label + "</button>" +
+      '<button class="btn-ghost" id="reconnect-airtable-btn" style="flex:1 1 100%;">Reconnect Airtable</button></div>';
   }
 
   function handleSyncNow() {
