@@ -60,12 +60,6 @@ function fetchLookupList(tableName) {
   });
 }
 
-function addLookupItem(tableName, name) {
-  return atCreate(tableName, { Name: name }).then(function (rec) {
-    return { id: rec.id, name: name };
-  });
-}
-
 /* ---------------- app record <-> Airtable field mapping ---------------- */
 
 var SYNC_CATEGORY_LABELS = {

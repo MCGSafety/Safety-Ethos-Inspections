@@ -1916,57 +1916,76 @@
     document.getElementById("f-notes").value = state.notes;
     LOOKUP_FIELDS.forEach(function (cfg) {
       var el = document.getElementById(cfg.fieldId);
-      if (el) el.value = state[cfg.stateKey] || "";
+      if (!el) return;
+      var val = state[cfg.stateKey] || "";
+      var hasOption = Array.prototype.some.call(el.options, function (o) { return o.value === val; });
+      el.value = val && !hasOption ? OTHER_VALUE : val;
+      syncOtherInput(el, val);
     });
   }
   document.getElementById("f-date").addEventListener("input", function (e) { state.date = e.target.value; scheduleSave(); });
   document.getElementById("f-notes").addEventListener("input", function (e) { state.notes = e.target.value; scheduleSave(); });
 
-  /* ---------------- PICK-OR-ADD DROPDOWNS ---------------- */
+  /* ---------------- PICK-OR-OTHER DROPDOWNS ---------------- */
+  // The lists are managed in Airtable only. "Other" lets an inspector type a
+  // one-off value for this walk without adding it to the shared lists.
+  var OTHER_VALUE = "__other__";
+
   function selectOptionsHtml(items, currentValue) {
     var names = items.map(function (i) { return i.name; });
+    var isOther = !!currentValue && names.indexOf(currentValue) === -1;
     var html = '<option value="">— Select —</option>';
-    if (currentValue && names.indexOf(currentValue) === -1) {
-      html += '<option value="' + escapeHtml(currentValue) + '" selected>' + escapeHtml(currentValue) + "</option>";
-    }
     html += items.map(function (i) {
       return '<option value="' + escapeHtml(i.name) + '"' + (i.name === currentValue ? " selected" : "") + ">" + escapeHtml(i.name) + "</option>";
     }).join("");
-    html += '<option value="__new__">+ Add new…</option>';
+    html += '<option value="' + OTHER_VALUE + '"' + (isOther ? " selected" : "") + ">Other</option>";
     return html;
   }
 
-  function wirePickOrAddSelect(selectEl, tableName, promptLabel, onValue) {
-    var lastValue = selectEl.value;
+  function getOtherInput(selectEl) {
+    var id = selectEl.id + "-other";
+    var input = document.getElementById(id);
+    if (!input) {
+      input = document.createElement("input");
+      input.type = "text";
+      input.id = id;
+      input.placeholder = "Type here…";
+      input.style.marginTop = "8px";
+      input.style.display = "none";
+      selectEl.insertAdjacentElement("afterend", input);
+    }
+    return input;
+  }
+
+  function syncOtherInput(selectEl, value) {
+    var input = getOtherInput(selectEl);
+    var isOther = selectEl.value === OTHER_VALUE;
+    input.style.display = isOther ? "" : "none";
+    input.value = isOther ? (value || "") : "";
+  }
+
+  function wirePickOrOtherSelect(selectEl, onValue) {
+    var input = getOtherInput(selectEl);
     selectEl.addEventListener("change", function () {
-      if (selectEl.value === "__new__") {
-        var name = (window.prompt(promptLabel) || "").trim();
-        if (!name) { selectEl.value = lastValue; return; }
-        var existingOpt = Array.prototype.find.call(selectEl.options, function (o) {
-          return o.value !== "__new__" && o.value.toLowerCase() === name.toLowerCase();
-        });
-        if (existingOpt) {
-          selectEl.value = existingOpt.value;
-        } else {
-          addLookupItem(tableName, name).catch(function (e) {
-            console.warn("Could not save new " + tableName + " entry:", e.message);
-          });
-          var opt = document.createElement("option");
-          opt.value = name; opt.textContent = name;
-          selectEl.insertBefore(opt, selectEl.querySelector('option[value="__new__"]'));
-          selectEl.value = name;
-        }
+      if (selectEl.value === OTHER_VALUE) {
+        input.style.display = "";
+        input.value = "";
+        input.focus();
+        onValue("");
+      } else {
+        input.style.display = "none";
+        input.value = "";
+        onValue(selectEl.value);
       }
-      lastValue = selectEl.value;
-      onValue(selectEl.value);
     });
+    input.addEventListener("input", function () { onValue(input.value.trim()); });
   }
 
   var LOOKUP_FIELDS = [
-    { fieldId: "f-site", table: "Sites", stateKey: "site", prompt: "New site name" },
-    { fieldId: "f-area", table: "Areas", stateKey: "area", prompt: "New area name" },
-    { fieldId: "f-inspector", table: "Inspectors", stateKey: "inspector", prompt: "New inspector name" },
-    { fieldId: "f-accompanied", table: "Inspectors", stateKey: "accompanied", prompt: "New name" }
+    { fieldId: "f-site", table: "Sites", stateKey: "site" },
+    { fieldId: "f-area", table: "Areas", stateKey: "area" },
+    { fieldId: "f-inspector", table: "Inspectors", stateKey: "inspector" },
+    { fieldId: "f-accompanied", table: "Inspectors", stateKey: "accompanied" }
   ];
 
   function loadLookupLists() {
@@ -1983,7 +2002,8 @@
         el.innerHTML = selectOptionsHtml([], state[cfg.stateKey]);
         console.warn("Could not load " + cfg.table + " list:", e.message);
       }).then(function () {
-        wirePickOrAddSelect(el, cfg.table, cfg.prompt, function (val) {
+        syncOtherInput(el, state[cfg.stateKey]);
+        wirePickOrOtherSelect(el, function (val) {
           state[cfg.stateKey] = val;
           scheduleSave();
         });
